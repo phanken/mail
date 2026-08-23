@@ -3,124 +3,205 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mail Ảo</title>
-  <meta name="theme-color" content="#6366f1">
-  <link rel="stylesheet" href="./style.css">
+  <title>Trình quản lý Mail Ảo - TempMail</title>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
+<body class="bg-slate-50 min-h-screen text-slate-800">
+  <div class="max-w-4xl mx-auto p-4 md:p-8">
+    <header class="text-center mb-8">
+      <h1 class="text-3xl font-bold text-indigo-600">Trình Quản Lý Mail Ảo</h1>
+      <p class="text-slate-500 text-sm mt-1">Kết nối API TempMail.ID.VN</p>
+    </header>
 
-<body>
-
-<div class="container">
-
-  <header>
-    <div class="brand">
-      <div class="logo">✉</div>
-      <div>
-        <h1>Mail Ảo</h1>
-        <p>Temporary Email</p>
-      </div>
+    <!-- Cấu hình Token -->
+    <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 mb-6 flex flex-col sm:flex-row gap-3">
+      <input type="password" id="apiToken" placeholder="Nhập API Token của bạn..." class="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      <button onclick="saveToken()" class="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-medium">Lưu Token</button>
     </div>
 
-    <button id="refreshBtn" class="ghost">↻</button>
-  </header>
+    <!-- Khu vực Tạo & Hiển thị Mail -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      
+      <!-- Cột trái: Quản lý & Tạo Mail -->
+      <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+        <h2 class="font-semibold text-base mb-4">Tạo Hộp Thư Mới</h2>
+        <div class="space-y-3">
+          <div>
+            <label class="text-xs text-slate-500 font-medium">Tên hộp thư (User)</label>
+            <input type="text" id="username" placeholder="Ví dụ: testuser123" class="w-full border rounded-lg px-3 py-2 text-sm mt-1 focus:ring-2 focus:ring-indigo-500 outline-none">
+          </div>
+          <div>
+            <label class="text-xs text-slate-500 font-medium">Tên miền (Domain)</label>
+            <input type="text" id="domain" value="tempmail.id.vn" class="w-full border rounded-lg px-3 py-2 text-sm mt-1 focus:ring-2 focus:ring-indigo-500 outline-none">
+          </div>
+          <button onclick="createMail()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg font-medium text-sm transition">Tạo Mail Ngay</button>
+        </div>
 
-  <section class="card account-card">
+        <hr class="my-5 border-slate-100">
 
-    <div class="label">ĐỊA CHỈ EMAIL</div>
-
-    <div class="email-row">
-      <div id="emailAddress">
-        Chưa có email
-      </div>
-
-      <button id="copyBtn">
-        Sao chép
-      </button>
-    </div>
-
-    <div class="actions">
-
-      <button id="createBtn" class="primary">
-        ＋ Tạo email mới
-      </button>
-
-      <button id="randomBtn" class="secondary">
-        🎲 Random
-      </button>
-
-    </div>
-
-  </section>
-
-  <section class="card">
-
-    <div class="inbox-head">
-
-      <div>
-        <h2>Hộp thư đến</h2>
-        <span id="status">Chưa có email</span>
+        <!-- Thông tin mail hiện tại -->
+        <div id="currentMailBox" class="hidden">
+          <label class="text-xs text-slate-500 font-medium">Email hiện tại:</label>
+          <div class="flex items-center gap-2 mt-1">
+            <input type="text" id="currentEmail" readonly class="w-full bg-slate-50 border rounded-lg px-2.5 py-1.5 text-xs text-slate-700">
+            <button onclick="copyMail()" class="text-xs bg-slate-200 hover:bg-slate-300 px-2 py-1.5 rounded">Copy</button>
+          </div>
+        </div>
       </div>
 
-      <button id="inboxRefreshBtn" class="ghost">
-        Làm mới
-      </button>
+      <!-- Cột phải: Hộp thư đến & Xem chi tiết -->
+      <div class="md:col-span-2 space-y-6">
+        
+        <!-- Danh sách thư -->
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="font-semibold text-base">Hộp Thư Đến</h2>
+            <button onclick="fetchMessages()" class="text-xs text-indigo-600 hover:underline flex items-center gap-1">
+              🔄 Làm mới
+            </button>
+          </div>
+          <ul id="messageList" class="divide-y divide-slate-100 text-sm">
+            <li class="py-4 text-center text-slate-400">Chưa có thư nào</li>
+          </ul>
+        </div>
 
-    </div>
+        <!-- Chi tiết thư -->
+        <div id="messageDetail" class="hidden bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+          <div class="border-b pb-3 mb-3">
+            <h3 id="msgSubject" class="font-bold text-lg text-slate-800"></h3>
+            <p id="msgSender" class="text-xs text-slate-500 mt-1"></p>
+          </div>
+          <div id="msgBody" class="text-sm prose max-w-none text-slate-700 overflow-x-auto"></div>
+        </div>
 
-    <div id="messages">
-
-      <div class="empty">
-        <div>📭</div>
-        <h3>Chưa có thư</h3>
-        <p>Tạo email để bắt đầu nhận thư.</p>
-      </div>
-
-    </div>
-
-  </section>
-
-  <footer>
-    Mail Ảo · Powered by TempMail.ID.VN
-  </footer>
-
-</div>
-
-
-<div id="toast" class="toast"></div>
-
-
-<div id="modal" class="modal hidden">
-
-  <div class="modal-box">
-
-    <div class="modal-head">
-
-      <h2 id="subject">Email</h2>
-
-      <button id="closeModal">×</button>
-
-    </div>
-
-    <div class="meta">
-      <div>
-        <b>From:</b>
-        <span id="from"></span>
-      </div>
-
-      <div>
-        <b>To:</b>
-        <span id="to"></span>
       </div>
     </div>
-
-    <div id="content" class="content"></div>
-
   </div>
 
-</div>
+  <script>
+    let currentMailId = null;
 
+    // Load Token từ LocalStorage nếu có
+    document.addEventListener('DOMContentLoaded', () => {
+      const savedToken = localStorage.getItem('tempmail_token');
+      if (savedToken) document.getElementById('apiToken').value = savedToken;
+    });
 
-<script src="./app.js"></script>
+    function saveToken() {
+      const token = document.getElementById('apiToken').value.trim();
+      if (!token) return alert('12673|NZISXaC0einZP6fWnJh5IJvPPOAQ2FfIkhUXkISV2c718576');
+      localStorage.setItem('tempmail_token', token);
+      alert('Đã lưu Token!');
+    }
 
+    function getToken() {
+      return document.getElementById('apiToken').value.trim();
+    }
+
+    // 1. Tạo Email Mới
+    async function createMail() {
+      const token = getToken();
+      if (!token) return alert('Hãy cấu hình API Token trước.');
+
+      let user = document.getElementById('username').value.trim();
+      const domain = document.getElementById('domain').value.trim() || 'tempmail.id.vn';
+
+      // Tạo ngẫu nhiên nếu không điền
+      if (!user) {
+        user = 'user_' + Math.random().toString(36).substring(2, 8);
+        document.getElementById('username').value = user;
+      }
+
+      try {
+        const res = await fetch('https://tempmail.id.vn/api/email/create', {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ user, domain })
+        });
+        const data = await res.json();
+        
+        if (data.id || (data.data && data.data.id)) {
+          currentMailId = data.id || data.data.id;
+          const emailAddress = `${user}@${domain}`;
+          document.getElementById('currentEmail').value = emailAddress;
+          document.getElementById('currentMailBox').classList.remove('hidden');
+          fetchMessages();
+        } else {
+          alert('Không thể tạo mail: ' + (data.message || 'Lỗi server'));
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Lỗi kết nối API. Kiểm tra console để xem chi tiết.');
+      }
+    }
+
+    // 2. Lấy Danh Sách Thư
+    async function fetchMessages() {
+      if (!currentMailId) return;
+      const token = getToken();
+
+      try {
+        const res = await fetch(`https://tempmail.id.vn/api/email/${currentMailId}`, {
+          headers: {
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        const data = await res.json();
+        const list = document.getElementById('messageList');
+        const messages = data.messages || data.data || [];
+
+        if (messages.length === 0) {
+          list.innerHTML = '<li class="py-4 text-center text-slate-400">Hộp thư trống</li>';
+          return;
+        }
+
+        list.innerHTML = messages.map(msg => `
+          <li class="py-3 flex justify-between items-center cursor-pointer hover:bg-slate-50 px-2 rounded transition" onclick="readMessage('${msg.id}')">
+            <div>
+              <p class="font-medium text-slate-800">${msg.subject || '(Không có tiêu đề)'}</p>
+              <p class="text-xs text-slate-400">Từ: ${msg.from || 'Ẩn danh'}</p>
+            </div>
+            <span class="text-xs text-indigo-500 font-medium">Xem</span>
+          </li>
+        `).join('');
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    // 3. Đọc Chi Tiết Thư
+    async function readMessage(msgId) {
+      const token = getToken();
+      try {
+        const res = await fetch(`https://tempmail.id.vn/api/message/${msgId}`, {
+          headers: {
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        const data = await res.json();
+        const msg = data.message || data.data || data;
+
+        document.getElementById('msgSubject').innerText = msg.subject || '(Không có tiêu đề)';
+        document.getElementById('msgSender').innerText = `Từ: ${msg.from || ''}`;
+        document.getElementById('msgBody').innerHTML = msg.html || `<p>${msg.text || ''}</p>`;
+        document.getElementById('messageDetail').classList.remove('hidden');
+      } catch (err) {
+        console.error(err);
+        alert('Không tải được nội dung thư.');
+      }
+    }
+
+    function copyMail() {
+      const copyText = document.getElementById('currentEmail');
+      navigator.clipboard.writeText(copyText.value);
+      alert('Đã sao chép địa chỉ email: ' + copyText.value);
+    }
+  </script>
 </body>
 </html>
