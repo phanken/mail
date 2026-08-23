@@ -115,22 +115,28 @@
       return document.getElementById('apiToken').value.trim();
     }
 
-    // Sửa lại hàm gọi API: chuẩn hóa cách ghép tham số và bỏ qua _t khi là POST/GET query
-async function apiRequest(endpoint, method = 'GET', body = null) {
+    async function apiRequest(endpoint, method = 'GET', body = null) {
   const token = getToken();
   if (!token) throw new Error('Chưa cung cấp API Token');
 
+  // Đảm bảo URL gốc chuẩn xác, không bị dính ký tự thừa vào path
   const targetUrl = `${API_BASE}${endpoint}`;
-  // Nối URL qua corsproxy chính xác
-  const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`;
+  
+  // Mã hóa URL đích nguyên vẹn cho corsproxy.io
+  const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
 
   const headers = {
     'Accept': 'application/json',
     'Authorization': `Bearer ${token}`
   };
 
-  const options = { method, headers };
-  if (body && method !== 'GET') {
+  const options = { 
+    method, 
+    headers,
+    cache: 'no-store' // Ngăn cache trực tiếp từ fetch
+  };
+
+  if (body) {
     headers['Content-Type'] = 'application/json';
     options.body = JSON.stringify(body);
   }
@@ -140,54 +146,43 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
   const text = await res.text();
 
   try {
-    const json = JSON.parse(text);
-    return json;
+    return JSON.parse(text);
   } catch (e) {
-    throw new Error(`Phản hồi: ${text.slice(0, 150)}`);
+    throw new Error(`Lỗi parse JSON (${res.status}): ${text.slice(0, 150)}`);
   }
 }
 
-// Sửa lại hàm tạo Mail: Chuyển sang gọi GET theo chuẩn route của TempMail
-async function createMail() {
-  const btn = document.getElementById('btnCreate');
-  let user = document.getElementById('username').value.trim();
-  const domain = document.getElementById('domain').value.trim() || 'tempmail.id.vn';
+    async function createMail() {
+      const btn = document.getElementById('btnCreate');
+      let user = document.getElementById('username').value.trim();
+      const domain = document.getElementById('domain').value.trim() || 'tempmail.id.vn';
 
-  if (!user) user = 'u' + Math.random().toString(36).substring(2, 8);
+      if (!user) user = 'u' + Math.random().toString(36).substring(2, 8);
 
-  btn.disabled = true;
-  btn.innerText = 'Đang xử lý...';
+      btn.disabled = true;
+      btn.innerText = 'Đang xử lý...';
 
-  try {
-    // Thử tạo bằng phương thức GET theo cú pháp endpoint
-    let res;
-    try {
-      res = await apiRequest(`/email/create/${user}/${domain}`, 'GET');
-    } catch (e) {
-      // Fallback nếu endpoint yêu cầu query string
-      res = await apiRequest(`/email/create?user=${encodeURIComponent(user)}&domain=${encodeURIComponent(domain)}`, 'GET');
+      try {
+        const res = await apiRequest('/email/create', 'POST', { user, domain });
+        log('Kết quả tạo mail: ' + JSON.stringify(res), 'success');
+
+        currentMailId = res.id || res.data?.id || res.mail_id || res.data?.mail_id;
+        currentFullEmail = `${user}@${domain}`;
+
+        document.getElementById('currentEmail').value = currentFullEmail;
+        document.getElementById('idInfo').innerText = `Mail ID: ${currentMailId || 'N/A'}`;
+        document.getElementById('currentMailBox').classList.remove('hidden');
+
+        fetchMessages();
+        startPolling();
+      } catch (err) {
+        log('Lỗi tạo mail: ' + err.message, 'error');
+        alert('Lỗi tạo email: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = 'Tạo Mail Mới';
+      }
     }
-
-    log('Kết quả tạo mail: ' + JSON.stringify(res), 'success');
-
-    // Lấy ID hòm thư trả về từ hệ thống
-    currentMailId = res.id || res.data?.id || res.mail_id || res.data?.mail_id || res.email_id;
-    currentFullEmail = `${user}@${domain}`;
-
-    document.getElementById('currentEmail').value = currentFullEmail;
-    document.getElementById('idInfo').innerText = `Mail ID: ${currentMailId || 'N/A'}`;
-    document.getElementById('currentMailBox').classList.remove('hidden');
-
-    fetchMessages();
-    startPolling();
-  } catch (err) {
-    log('Lỗi tạo mail: ' + err.message, 'error');
-    alert('Lỗi: ' + err.message);
-  } finally {
-    btn.disabled = false;
-    btn.innerText = 'Tạo Mail Mới';
-  }
-}
 
     function startPolling() {
       if (pollInterval) clearInterval(pollInterval);
