@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Trình Quản Lý Mail Ảo - Debug Mode</title>
+  <title>Trình Quản Lý Mail Ảo - TempMail</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-50 min-h-screen text-slate-800 p-4 md:p-8">
@@ -11,18 +11,18 @@
     
     <header class="text-center">
       <h1 class="text-2xl md:text-3xl font-bold text-indigo-600">Trình Quản Lý Mail Ảo</h1>
-      <p class="text-slate-500 text-xs mt-1">Hỗ trợ tra cứu theo ID & Email đầy đủ</p>
+      <p class="text-slate-500 text-xs mt-1">Kết nối qua Cloudflare Worker Proxy</p>
     </header>
 
     <!-- Token Section -->
     <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col sm:flex-row gap-3">
-      <input type="password" id="apiToken" placeholder="Nhập API Token..." class="flex-1 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
-      <button onclick="saveToken()" class="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-medium">Lưu Token</button>
+      <input type="password" id="apiToken" placeholder="Dán API Token TempMail vào đây..." class="flex-1 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+      <button onclick="saveToken()" class="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-medium transition">Lưu Token</button>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
       
-      <!-- Cột trái: Quản lý Email -->
+      <!-- Cột trái: Tạo Email -->
       <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
         <h2 class="font-semibold text-sm uppercase text-slate-500 tracking-wider">Tạo Hộp Thư</h2>
         <div>
@@ -59,7 +59,7 @@
           </div>
 
           <ul id="messageList" class="divide-y divide-slate-100 text-sm">
-            <li class="py-6 text-center text-slate-400">Chưa tạo hòm thư nào</li>
+            <li class="py-6 text-center text-slate-400">Chưa tạo hòm thư</li>
           </ul>
         </div>
 
@@ -80,13 +80,15 @@
         <span>Bảng Nhật Ký API (Debug Realtime)</span>
         <button onclick="document.getElementById('debugLog').innerText=''" class="hover:text-white">Xóa log</button>
       </div>
-      <div id="debugLog" class="max-h-40 overflow-y-auto space-y-1">Chưa có hoạt động...</div>
+      <div id="debugLog" class="max-h-48 overflow-y-auto space-y-1">Chưa có hoạt động...</div>
     </div>
 
   </div>
 
   <script>
-  const API_BASE = 'https://mail.phanken-net.workers.dev'; 
+    // ⚠️ ĐIỀN LINK CLOUDFLARE WORKER CỦA BẠN VÀO ĐÂY (không để dấu gạch chéo ở cuối)
+    const WORKER_URL = 'https://mail.phanken-net.workers.dev';
+
     let currentMailId = null;
     let currentFullEmail = null;
     let pollInterval = null;
@@ -94,13 +96,17 @@
     function log(msg, type = 'info') {
       const box = document.getElementById('debugLog');
       const time = new Date().toLocaleTimeString();
-      const color = type === 'error' ? 'text-red-400' : (type === 'success' ? 'text-emerald-400' : 'text-slate-300');
+      const color = type === 'error' ? 'text-red-400 font-semibold' : (type === 'success' ? 'text-emerald-400 font-semibold' : 'text-slate-300');
       box.innerHTML = `<div class="${color}">[${time}] ${escapeHtml(msg)}</div>` + box.innerHTML;
     }
 
     document.addEventListener('DOMContentLoaded', () => {
       const savedToken = localStorage.getItem('tempmail_token');
       if (savedToken) document.getElementById('apiToken').value = savedToken;
+      
+      if (WORKER_URL.includes('YOUR_WORKER_SUBDOMAIN')) {
+        log('CẢNH BÁO: Bạn chưa cấu hình biến WORKER_URL trong mã JS!', 'error');
+      }
     });
 
     function saveToken() {
@@ -115,36 +121,96 @@
       return document.getElementById('apiToken').value.trim();
     }
 
-    // Đảm bảo không có dấu / ở cuối URL gốc
-async function apiRequest(endpoint, method = 'GET', body = null) {
-  const token = getToken();
-  if (!token) throw new Error('Chưa cung cấp API Token');
+    // Hàm gọi API kèm Timeout 10 giây tránh bị treo nút
+    async function apiRequest(endpoint, method = 'GET', body = null) {
+      const token = getToken();
+      if (!token) {
+        log('Lỗi: Bạn chưa nhập API Token!', 'error');
+        throw new Error('Chưa cung cấp API Token');
+      }
 
-  // Xóa dấu / thừa ở đầu endpoint nếu có
-  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  const targetUrl = `${API_BASE.replace(/\/+$/, '')}${cleanEndpoint}`;
+      const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+      const targetUrl = `${WORKER_URL.replace(/\/+$/, '')}${cleanEndpoint}`;
 
-  const headers = {
-    'Accept': 'application/json',
-    'Authorization': `Bearer ${token}`
-  };
+      const headers = {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${token}`
+      };
 
-  const options = { method, headers };
-  if (body) {
-    headers['Content-Type'] = 'application/json';
-    options.body = JSON.stringify(body);
-  }
+      const options = { method, headers };
+      if (body) {
+        headers['Content-Type'] = 'application/json';
+        options.body = JSON.stringify(body);
+      }
 
-  log(`Gửi ${method} -> ${cleanEndpoint}`);
-  const res = await fetch(targetUrl, options);
-  const text = await res.text();
+      log(`Gửi ${method} -> ${cleanEndpoint}`);
 
-  try {
-    return JSON.parse(text);
-  } catch (e) {
-    throw new Error(`Lỗi parse JSON (${res.status}): ${text.slice(0, 150)}`);
-  }
-}
+      // Tạo cơ chế timeout tự hủy nếu server không phản hồi sau 10s
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      options.signal = controller.signal;
+
+      try {
+        const res = await fetch(targetUrl, options);
+        clearTimeout(timeoutId);
+        
+        const text = await res.text();
+        try {
+          return JSON.parse(text);
+        } catch (e) {
+          throw new Error(`Server không trả về JSON (${res.status}): ${text.slice(0, 120)}`);
+        }
+      } catch (err) {
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') {
+          throw new Error('Kết nối bị quá thời gian (Timeout 10s). Kiểm tra lại link Worker.');
+        }
+        throw err;
+      }
+    }
+
+    async function createMail() {
+      const btn = document.getElementById('btnCreate');
+      const token = getToken();
+
+      if (!token) {
+        alert('Vui lòng nhập API Token trước.');
+        return;
+      }
+
+      let user = document.getElementById('username').value.trim();
+      const domain = document.getElementById('domain').value.trim() || 'tempmail.id.vn';
+
+      if (!user) user = 'u' + Math.random().toString(36).substring(2, 8);
+
+      btn.disabled = true;
+      btn.innerText = 'Đang tạo...';
+
+      try {
+        const res = await apiRequest('/email/create', 'POST', { user, domain });
+        log('Kết quả tạo mail: ' + JSON.stringify(res), 'success');
+
+        currentMailId = res.id || res.data?.id || res.mail_id || res.data?.mail_id;
+        currentFullEmail = res.email || res.data?.email || `${user}@${domain}`;
+
+        if (currentMailId || currentFullEmail) {
+          document.getElementById('currentEmail').value = currentFullEmail;
+          document.getElementById('idInfo').innerText = `Mail ID: ${currentMailId || 'N/A'}`;
+          document.getElementById('currentMailBox').classList.remove('hidden');
+
+          fetchMessages();
+          startPolling();
+        } else {
+          log('Phản hồi không chứa thông tin ID/Email hợp lệ', 'error');
+        }
+      } catch (err) {
+        log('Lỗi tạo mail: ' + err.message, 'error');
+        alert('Lỗi: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = 'Tạo Mail Mới';
+      }
+    }
 
     function startPolling() {
       if (pollInterval) clearInterval(pollInterval);
@@ -155,76 +221,59 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
     }
 
     async function fetchMessages(isSilent = false) {
-  if (!currentMailId) return;
+      if (!currentMailId && !currentFullEmail) return;
 
-  const indicator = document.getElementById('pollStatus');
-  if (isSilent && indicator) indicator.classList.remove('hidden');
+      const targetQuery = currentMailId || encodeURIComponent(currentFullEmail);
 
-  try {
-    // 1. Thêm tham số timestamp ngẫu nhiên vào URL gốc để ép proxy và server luôn lấy dữ liệu mới nhất
-    const targetEndpoint = `/email/${currentMailId}?nocache=${Date.now()}`;
-    const res = await apiRequest(targetEndpoint, 'GET');
+      try {
+        const res = await apiRequest(`/email/${targetQuery}`, 'GET');
+        
+        let messages = [];
+        if (Array.isArray(res)) messages = res;
+        else if (Array.isArray(res.messages)) messages = res.messages;
+        else if (Array.isArray(res.data)) messages = res.data;
+        else if (Array.isArray(res.emails)) messages = res.emails;
+        else if (res.data && Array.isArray(res.data.messages)) messages = res.data.messages;
 
-    // In toàn bộ object nhận được ra ô debug log để kiểm tra cấu trúc
-    if (!isSilent) {
-      log('Cấu trúc dữ liệu mailbox: ' + JSON.stringify(res));
+        const list = document.getElementById('messageList');
+
+        if (messages.length === 0) {
+          list.innerHTML = '<li class="py-6 text-center text-slate-400">Đang chờ tin nhắn mới...</li>';
+          return;
+        }
+
+        log(`Tìm thấy ${messages.length} thư mới!`, 'success');
+
+        list.innerHTML = messages.map(msg => {
+          const id = msg.id || msg.message_id || msg._id;
+          const subject = msg.subject || msg.title || '(Không tiêu đề)';
+          const from = msg.from || msg.sender || msg.from_address || 'Không rõ';
+
+          return `
+            <li class="py-3 flex justify-between items-center cursor-pointer hover:bg-slate-50 px-2 rounded transition border-b last:border-0" onclick="readMessage('${id}')">
+              <div class="overflow-hidden pr-2">
+                <p class="font-medium text-slate-800 truncate">${escapeHtml(subject)}</p>
+                <p class="text-xs text-slate-400 truncate">Từ: ${escapeHtml(from)}</p>
+              </div>
+              <span class="text-xs bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded font-medium shrink-0">Đọc</span>
+            </li>
+          `;
+        }).join('');
+      } catch (err) {
+        if (!isSilent) log('Lỗi đọc danh sách thư: ' + err.message, 'error');
+      }
     }
-
-    // 2. Bóc tách mảng thư linh hoạt theo mọi cấu trúc response khả dĩ
-    let messages = [];
-    if (Array.isArray(res)) {
-      messages = res;
-    } else if (Array.isArray(res.messages)) {
-      messages = res.messages;
-    } else if (res.data) {
-      if (Array.isArray(res.data)) messages = res.data;
-      else if (Array.isArray(res.data.messages)) messages = res.data.messages;
-      else if (Array.isArray(res.data.emails)) messages = res.data.emails;
-      else if (Array.isArray(res.data.inbox)) messages = res.data.inbox;
-    }
-
-    const list = document.getElementById('messageList');
-
-    if (messages.length === 0) {
-      list.innerHTML = '<li class="py-6 text-center text-slate-400">Hòm thư chưa có thư mới (đang tự động quét)...</li>';
-      return;
-    }
-
-    // Ghi nhận khi có thư về
-    log(`>>> Nhận được ${messages.length} thư!`, 'success');
-
-    list.innerHTML = messages.map(msg => {
-      const id = msg.id || msg.message_id || msg._id;
-      const subject = msg.subject || msg.title || '(Không có tiêu đề)';
-      const from = msg.from || msg.sender || msg.from_address || 'Không rõ';
-
-      return `
-        <li class="py-3 flex justify-between items-center cursor-pointer hover:bg-slate-50 px-2 rounded transition border-b last:border-0" onclick="readMessage('${id}')">
-          <div class="overflow-hidden pr-2">
-            <p class="font-medium text-slate-800 truncate">${escapeHtml(subject)}</p>
-            <p class="text-xs text-slate-400 truncate">Từ: ${escapeHtml(from)}</p>
-          </div>
-          <span class="text-xs bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded font-medium shrink-0">Đọc</span>
-        </li>
-      `;
-    }).join('');
-  } catch (err) {
-    if (!isSilent) log('Lỗi đọc hòm thư: ' + err.message, 'error');
-  } finally {
-    if (isSilent && indicator) indicator.classList.add('hidden');
-  }
-}
 
     async function readMessage(msgId) {
       if (!msgId || msgId === 'undefined') return alert('ID thư không hợp lệ');
 
       try {
         const res = await apiRequest(`/message/${msgId}`, 'GET');
-        log('Dữ liệu chi tiết thư: ' + JSON.stringify(res), 'success');
+        log('Nội dung chi tiết thư: ' + JSON.stringify(res), 'success');
 
         const msg = res.message || res.data || res;
         document.getElementById('msgSubject').innerText = msg.subject || '(Không tiêu đề)';
-        document.getElementById('msgSender').innerText = `Từ: ${msg.from || ''}`;
+        document.getElementById('msgSender').innerText = `Từ: ${msg.from || msg.sender || ''}`;
         document.getElementById('msgBody').innerHTML = msg.html || msg.body_html || `<p>${escapeHtml(msg.text || msg.body || '(Nội dung trống)')}</p>`;
         
         const detailBox = document.getElementById('messageDetail');
@@ -240,7 +289,7 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
       const val = document.getElementById('currentEmail').value;
       navigator.clipboard.writeText(val);
       log('Đã sao chép: ' + val);
-      alert('Đã copy!');
+      alert('Đã copy: ' + val);
     }
 
     function escapeHtml(str) {
