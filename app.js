@@ -696,11 +696,18 @@ $("createBtn")
         createMail
     );
 
-$("randomBtn")
-    .addEventListener(
-        "click",
-        createMail
-    );
+$("randomBtn").addEventListener(
+    "click",
+    async () => {
+        const userInput = $("mailUser");
+
+        if (userInput) {
+            userInput.value = "";
+        }
+
+        await createMail();
+    }
+);
 
 $("copyBtn")
     .addEventListener(
