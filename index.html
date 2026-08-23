@@ -30,9 +30,22 @@
           <input type="text" id="username" placeholder="Để trống để tạo ngẫu nhiên" class="w-full border rounded-lg px-3 py-2 text-sm mt-1 focus:ring-2 focus:ring-indigo-500 outline-none">
         </div>
         <div>
-          <label class="text-xs font-medium text-slate-600">Tên miền (Domain)</label>
-          <input type="text" id="domain" value="tempmail.id.vn" class="w-full border rounded-lg px-3 py-2 text-sm mt-1 focus:ring-2 focus:ring-indigo-500 outline-none">
-        </div>
+  <label class="text-xs font-medium text-slate-600">Tên miền (Domain)</label>
+  <div class="space-y-2 mt-1">
+    <!-- Dropdown chọn domain -->
+    <select id="domainSelect" onchange="handleDomainChange()" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+      <option value="tempmail.id.vn">tempmail.id.vn</option>
+      <option value="1trick.net">1trick.net</option>
+	  <option value="hathitrannhien.edu.vn">hathitrannhien.edu.vn</option>
+	  <option value="nghienplus.store">nghienplus.store</option>
+	  <option value="nghienplus.io.vn">nghienplus.io.vn</option>
+      <option value="custom">-- Nhập tên miền tùy chỉnh --</option>
+    </select>
+    
+    <!-- Ô nhập domain thủ công (chỉ hiện khi chọn 'custom') -->
+    <input type="text" id="customDomainInput" placeholder="Ví dụ: mydomain.com" class="hidden w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+  </div>
+</div>
         <button id="btnCreate" onclick="createMail()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg font-medium text-sm transition">
           Tạo Mail Mới
         </button>
@@ -148,40 +161,65 @@
         throw new Error(`Server không trả JSON (${res.status}): ${text.slice(0, 120)}`);
       }
     }
+function handleDomainChange() {
+  const select = document.getElementById('domainSelect');
+  const customInput = document.getElementById('customDomainInput');
+  
+  if (select.value === 'custom') {
+    customInput.classList.remove('hidden');
+    customInput.focus();
+  } else {
+    customInput.classList.add('hidden');
+  }
+}
+    // 2. Cập nhật cách lấy domain trong hàm createMail()
+async function createMail() {
+  const btn = document.getElementById('btnCreate');
+  const token = getToken();
+  if (!token) return alert('Vui lòng nhập API Token trước.');
 
-    async function createMail() {
-      const btn = document.getElementById('btnCreate');
-      const token = getToken();
-      if (!token) return alert('Vui lòng nhập API Token trước.');
-
-      let user = document.getElementById('username').value.trim();
-      const domain = document.getElementById('domain').value.trim() || 'tempmail.id.vn';
-      if (!user) user = 'u' + Math.random().toString(36).substring(2, 8);
-
-      btn.disabled = true;
-      btn.innerText = 'Đang tạo...';
-
-      try {
-        const res = await apiRequest('/email/create', 'POST', { user, domain });
-        log('Kết quả tạo mail: ' + JSON.stringify(res), 'success');
-
-        currentMailId = res.id || res.data?.id || res.mail_id || res.data?.mail_id;
-        currentFullEmail = res.email || res.data?.email || `${user}@${domain}`;
-
-        document.getElementById('currentEmail').value = currentFullEmail;
-        document.getElementById('idInfo').innerText = `Mail ID: ${currentMailId || 'N/A'}`;
-        document.getElementById('currentMailBox').classList.remove('hidden');
-
-        fetchMessages();
-        startPolling();
-      } catch (err) {
-        log('Lỗi tạo mail: ' + err.message, 'error');
-        alert('Lỗi: ' + err.message);
-      } finally {
-        btn.disabled = false;
-        btn.innerText = 'Tạo Mail Mới';
-      }
+  let user = document.getElementById('username').value.trim();
+  
+  // Lấy domain từ Select hoặc từ ô Tùy chỉnh
+  const domainSelect = document.getElementById('domainSelect').value;
+  let domain = domainSelect;
+  
+  if (domainSelect === 'custom') {
+    domain = document.getElementById('customDomainInput').value.trim();
+    if (!domain) {
+      alert('Vui lòng nhập tên miền tùy chỉnh của bạn!');
+      return;
     }
+  }
+
+  if (!user) user = 'u' + Math.random().toString(36).substring(2, 8);
+
+  btn.disabled = true;
+  btn.innerText = 'Đang tạo...';
+
+  try {
+    const res = await apiRequest('/email/create', 'POST', { user, domain });
+    log('Kết quả tạo mail: ' + JSON.stringify(res), 'success');
+
+    currentMailId = res.id || res.data?.id || res.mail_id || res.data?.mail_id;
+    currentFullEmail = res.email || res.data?.email || `${user}@${domain}`;
+
+    if (currentMailId || currentFullEmail) {
+      document.getElementById('currentEmail').value = currentFullEmail;
+      document.getElementById('idInfo').innerText = `Mail ID: ${currentMailId || 'N/A'}`;
+      document.getElementById('currentMailBox').classList.remove('hidden');
+
+      fetchMessages();
+      startPolling();
+    }
+  } catch (err) {
+    log('Lỗi tạo mail: ' + err.message, 'error');
+    alert('Lỗi: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerText = 'Tạo Mail Mới';
+  }
+}
 
     function startPolling() {
       if (pollInterval) clearInterval(pollInterval);
