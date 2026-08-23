@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+
+  <title>Temp Mail</title>
+
+  <meta
+    name="description"
+    content="Temporary email inbox"
+  />
+
+  <link rel="stylesheet" href="/style.css" />
+</head>
+
+<body>
+
+  <div class="app">
+
+    <header class="header">
+      <div>
+        <div class="logo">
+          <span class="logo-icon">✉</span>
+          Temp Mail
+        </div>
+
+        <p class="subtitle">
+          Email tạm thời nhanh chóng và tiện lợi
+        </p>
+      </div>
+
+      <button id="refreshBtn" class="icon-btn">
+        ↻
+      </button>
+    </header>
+
+
+    <main>
+
+      <section class="mail-card">
+
+        <div class="mail-label">
+          EMAIL CỦA BẠN
+        </div>
+
+        <div class="mail-box">
+
+          <span id="emailAddress">
+            Chưa có email
+          </span>
+
+          <button id="copyBtn">
+            Sao chép
+          </button>
+
+        </div>
+
+        <div class="mail-actions">
+
+          <button
+            id="createBtn"
+            class="primary-btn"
+          >
+            ＋ Tạo email mới
+          </button>
+
+          <button
+            id="randomBtn"
+            class="secondary-btn"
+          >
+            Email random
+          </button>
+
+        </div>
+
+      </section>
+
+
+      <section class="inbox-card">
+
+        <div class="section-header">
+
+          <div>
+            <h2>Hộp thư đến</h2>
+
+            <span id="mailStatus">
+              Chưa chọn email
+            </span>
+          </div>
+
+          <button
+            id="inboxRefreshBtn"
+            class="small-btn"
+          >
+            ↻ Làm mới
+          </button>
+
+        </div>
+
+
+        <div id="messageList" class="message-list">
+
+          <div class="empty">
+            <div class="empty-icon">📭</div>
+
+            <h3>Chưa có thư</h3>
+
+            <p>
+              Tạo một email tạm thời để bắt đầu.
+            </p>
+          </div>
+
+        </div>
+
+      </section>
+
+    </main>
+
+
+    <footer>
+      Temp Mail Web · Powered by TempMail.ID.VN
+    </footer>
+
+  </div>
+
+
+  <div id="toast" class="toast"></div>
+
+
+  <div id="messageModal" class="modal hidden">
+
+    <div class="modal-content">
+
+      <div class="modal-header">
+
+        <h2 id="modalSubject">
+          Email
+        </h2>
+
+        <button id="closeModal">
+          ×
+        </button>
+
+      </div>
+
+      <div class="modal-info">
+
+        <div>
+          <b>From:</b>
+          <span id="modalFrom"></span>
+        </div>
+
+        <div>
+          <b>To:</b>
+          <span id="modalTo"></span>
+        </div>
+
+      </div>
+
+      <div
+        id="modalBody"
+        class="modal-body"
+      ></div>
+
+    </div>
+
+  </div>
+
+
+  <script src="/app.js"></script>
+
+</body>
+</html>
