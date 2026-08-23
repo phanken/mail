@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mail Ảo</title>
+  <meta name="theme-color" content="#6366f1">
+  <link rel="stylesheet" href="./style.css">
+</head>
+
+<body>
+
+<div class="container">
+
+  <header>
+    <div class="brand">
+      <div class="logo">✉</div>
+      <div>
+        <h1>Mail Ảo</h1>
+        <p>Temporary Email</p>
+      </div>
+    </div>
+
+    <button id="refreshBtn" class="ghost">↻</button>
+  </header>
+
+  <section class="card account-card">
+
+    <div class="label">ĐỊA CHỈ EMAIL</div>
+
+    <div class="email-row">
+      <div id="emailAddress">
+        Chưa có email
+      </div>
+
+      <button id="copyBtn">
+        Sao chép
+      </button>
+    </div>
+
+    <div class="actions">
+
+      <button id="createBtn" class="primary">
+        ＋ Tạo email mới
+      </button>
+
+      <button id="randomBtn" class="secondary">
+        🎲 Random
+      </button>
+
+    </div>
+
+  </section>
+
+  <section class="card">
+
+    <div class="inbox-head">
+
+      <div>
+        <h2>Hộp thư đến</h2>
+        <span id="status">Chưa có email</span>
+      </div>
+
+      <button id="inboxRefreshBtn" class="ghost">
+        Làm mới
+      </button>
+
+    </div>
+
+    <div id="messages">
+
+      <div class="empty">
+        <div>📭</div>
+        <h3>Chưa có thư</h3>
+        <p>Tạo email để bắt đầu nhận thư.</p>
+      </div>
+
+    </div>
+
+  </section>
+
+  <footer>
+    Mail Ảo · Powered by TempMail.ID.VN
+  </footer>
+
+</div>
+
+
+<div id="toast" class="toast"></div>
+
+
+<div id="modal" class="modal hidden">
+
+  <div class="modal-box">
+
+    <div class="modal-head">
+
+      <h2 id="subject">Email</h2>
+
+      <button id="closeModal">×</button>
+
+    </div>
+
+    <div class="meta">
+      <div>
+        <b>From:</b>
+        <span id="from"></span>
+      </div>
+
+      <div>
+        <b>To:</b>
+        <span id="to"></span>
+      </div>
+    </div>
+
+    <div id="content" class="content"></div>
+
+  </div>
+
+</div>
+
+
+<script src="./app.js"></script>
+
+</body>
+</html>
