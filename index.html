@@ -26,32 +26,60 @@
 
   <section class="card account-card">
 
-    <div class="label">ĐỊA CHỈ EMAIL</div>
+  <div class="label">ĐỊA CHỈ EMAIL</div>
 
-    <div class="email-row">
-      <div id="emailAddress">
-        Chưa có email
-      </div>
-
-      <button id="copyBtn">
-        Sao chép
-      </button>
+  <div class="email-row">
+    <div id="emailAddress">
+      Chưa có email
     </div>
 
-    <div class="actions">
+    <button id="copyBtn">
+      Sao chép
+    </button>
+  </div>
 
-      <button id="createBtn" class="primary">
-        ＋ Tạo email mới
-      </button>
+  <div class="custom-mail">
 
-      <button id="randomBtn" class="secondary">
-        🎲 Random
-      </button>
-
+    <div class="input-group">
+      <label for="mailUser">Tên email</label>
+      <input
+        id="mailUser"
+        type="text"
+        placeholder="Ví dụ: anhphan123"
+        autocomplete="off"
+        spellcheck="false"
+      >
     </div>
 
-  </section>
+    <div class="at">@</div>
 
+    <div class="input-group domain-group">
+      <label for="mailDomain">Tên miền</label>
+      <input
+        id="mailDomain"
+        type="text"
+        value="nghienplus.store"
+        placeholder="example.com"
+        autocomplete="off"
+        spellcheck="false"
+      >
+    </div>
+
+  </div>
+
+  <div class="actions">
+
+    <button id="createBtn" class="primary">
+      ＋ Tạo email
+    </button>
+
+    <button id="randomBtn" class="secondary">
+      🎲 Random
+    </button>
+
+  </div>
+
+</section>
   <section class="card">
 
     <div class="inbox-head">
