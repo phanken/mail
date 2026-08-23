@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Trình Quản Lý Mail Ảo - TempMail</title>
+  <title>Trình Quản Lý Mail Ảo</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-50 min-h-screen text-slate-800 p-4 md:p-8">
@@ -11,24 +11,20 @@
     
     <header class="text-center">
       <h1 class="text-2xl md:text-3xl font-bold text-indigo-600">Trình Quản Lý Mail Ảo</h1>
-      <p class="text-slate-500 text-xs mt-1">Kết nối API TempMail.ID.VN qua Cloudflare Worker</p>
+      <p class="text-slate-500 text-xs mt-1">Tự động kết nối bảo mật qua Cloudflare Worker</p>
     </header>
-
-    <!-- Token Section -->
-    <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col sm:flex-row gap-3">
-      <input type="password" id="apiToken" placeholder="Nhập API Token..." class="flex-1 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
-      <button onclick="saveToken()" class="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-medium transition">Lưu Token</button>
-    </div>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
       
-      <!-- Cột trái: Quản lý Email -->
+      <!-- Cột trái: Quản lý & Tạo Email -->
       <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
         <h2 class="font-semibold text-sm uppercase text-slate-500 tracking-wider">Tạo Hộp Thư</h2>
+        
         <div>
           <label class="text-xs font-medium text-slate-600">Tên hòm thư (User)</label>
           <input type="text" id="username" placeholder="Để trống để tạo ngẫu nhiên" class="w-full border rounded-lg px-3 py-2 text-sm mt-1 focus:ring-2 focus:ring-indigo-500 outline-none">
         </div>
+
         <div>
   <label class="text-xs font-medium text-slate-600">Tên miền (Domain)</label>
   <div class="space-y-2 mt-1">
@@ -46,12 +42,13 @@
     <input type="text" id="customDomainInput" placeholder="Ví dụ: mydomain.com" class="hidden w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
   </div>
 </div>
+
         <button id="btnCreate" onclick="createMail()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg font-medium text-sm transition">
           Tạo Mail Mới
         </button>
 
         <div id="currentMailBox" class="hidden pt-4 border-t border-slate-100 space-y-2">
-          <label class="text-xs font-medium text-slate-600">Email hiện tại:</label>
+          <label class="text-xs font-medium text-slate-600">Email đang dùng:</label>
           <div class="flex items-center gap-2">
             <input type="text" id="currentEmail" readonly class="w-full bg-slate-50 border rounded-lg px-2 py-1.5 text-xs font-mono">
             <button onclick="copyMail()" class="text-xs bg-slate-200 hover:bg-slate-300 px-2 py-1.5 rounded">Copy</button>
@@ -66,7 +63,7 @@
           <div class="flex justify-between items-center mb-4">
             <h2 class="font-semibold text-sm uppercase text-slate-500 tracking-wider flex items-center gap-2">
               Hộp Thư Đến
-              <span id="pollStatus" class="hidden text-xs text-indigo-500 font-normal animate-pulse">● Đang quét</span>
+              <span id="pollStatus" class="hidden text-xs text-indigo-500 font-normal animate-pulse">● Đang quét thư mới</span>
             </h2>
             <button onclick="fetchMessages()" class="text-xs text-indigo-600 hover:underline font-medium">🔄 Làm mới ngay</button>
           </div>
@@ -90,10 +87,10 @@
       </div>
     </div>
 
-    <!-- Live Debug Log Viewer -->
+    <!-- Live Debug Log -->
     <div class="bg-slate-900 text-slate-200 p-4 rounded-xl text-xs font-mono space-y-2">
       <div class="flex justify-between items-center text-slate-400 pb-2 border-b border-slate-800">
-        <span>Bảng Nhật Ký API (Debug Realtime)</span>
+        <span>Bảng Nhật Ký API (Realtime)</span>
         <button onclick="document.getElementById('debugLog').innerText=''" class="hover:text-white">Xóa log</button>
       </div>
       <div id="debugLog" class="max-h-48 overflow-y-auto space-y-1">Chưa có hoạt động...</div>
@@ -102,7 +99,7 @@
   </div>
 
   <script>
-    // ⚠️ ĐIỀN LINK WORKER CỦA BẠN VÀO ĐÂY
+    // ⚠️ ĐIỀN CHÍNH XÁC LINK WORKER CỦA BẠN VÀO ĐÂY
     const WORKER_URL = 'https://mail.phanken-net.workers.dev';
 
     let currentMailId = null;
@@ -116,38 +113,29 @@
       box.innerHTML = `<div class="${color}">[${time}] ${escapeHtml(msg)}</div>` + box.innerHTML;
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-      const savedToken = localStorage.getItem('tempmail_token');
-      if (savedToken) document.getElementById('apiToken').value = savedToken;
-    });
-
-    function saveToken() {
-      const token = document.getElementById('apiToken').value.trim();
-      if (!token) return alert('Vui lòng nhập Token');
-      localStorage.setItem('tempmail_token', token);
-      log('Đã lưu Token mới!', 'success');
-      alert('Đã lưu Token!');
+    function handleDomainChange() {
+      const select = document.getElementById('domainSelect');
+      const customInput = document.getElementById('customDomainInput');
+      if (select.value === 'custom') {
+        customInput.classList.remove('hidden');
+        customInput.focus();
+      } else {
+        customInput.classList.add('hidden');
+      }
     }
 
-    function getToken() {
-      return document.getElementById('apiToken').value.trim();
-    }
-
+    // Gửi yêu cầu qua Worker (Không cần đính kèm Token từ máy khách)
     async function apiRequest(endpoint, method = 'GET', body = null) {
-      const token = getToken();
-      if (!token) throw new Error('Chưa cung cấp API Token');
-
       const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
       const targetUrl = `${WORKER_URL.replace(/\/+$/, '')}${cleanEndpoint}`;
 
-      const headers = {
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${token}`
+      const options = {
+        method,
+        headers: { 'Accept': 'application/json' }
       };
 
-      const options = { method, headers };
       if (body) {
-        headers['Content-Type'] = 'application/json';
+        options.headers['Content-Type'] = 'application/json';
         options.body = JSON.stringify(body);
       }
 
@@ -158,68 +146,49 @@
       try {
         return JSON.parse(text);
       } catch (e) {
-        throw new Error(`Server không trả JSON (${res.status}): ${text.slice(0, 120)}`);
+        throw new Error(`Phản hồi không phải JSON (${res.status}): ${text.slice(0, 120)}`);
       }
     }
-function handleDomainChange() {
-  const select = document.getElementById('domainSelect');
-  const customInput = document.getElementById('customDomainInput');
-  
-  if (select.value === 'custom') {
-    customInput.classList.remove('hidden');
-    customInput.focus();
-  } else {
-    customInput.classList.add('hidden');
-  }
-}
-    // 2. Cập nhật cách lấy domain trong hàm createMail()
-async function createMail() {
-  const btn = document.getElementById('btnCreate');
-  const token = getToken();
-  if (!token) return alert('Vui lòng nhập API Token trước.');
 
-  let user = document.getElementById('username').value.trim();
-  
-  // Lấy domain từ Select hoặc từ ô Tùy chỉnh
-  const domainSelect = document.getElementById('domainSelect').value;
-  let domain = domainSelect;
-  
-  if (domainSelect === 'custom') {
-    domain = document.getElementById('customDomainInput').value.trim();
-    if (!domain) {
-      alert('Vui lòng nhập tên miền tùy chỉnh của bạn!');
-      return;
+    async function createMail() {
+      const btn = document.getElementById('btnCreate');
+      let user = document.getElementById('username').value.trim();
+      
+      const domainSelect = document.getElementById('domainSelect').value;
+      let domain = domainSelect;
+      if (domainSelect === 'custom') {
+        domain = document.getElementById('customDomainInput').value.trim();
+        if (!domain) return alert('Vui lòng nhập tên miền tùy chỉnh!');
+      }
+
+      if (!user) user = 'u' + Math.random().toString(36).substring(2, 8);
+
+      btn.disabled = true;
+      btn.innerText = 'Đang tạo...';
+
+      try {
+        const res = await apiRequest('/email/create', 'POST', { user, domain });
+        log('Kết quả tạo mail: ' + JSON.stringify(res), 'success');
+
+        currentMailId = res.id || res.data?.id || res.mail_id || res.data?.mail_id;
+        currentFullEmail = res.email || res.data?.email || `${user}@${domain}`;
+
+        if (currentMailId) {
+          document.getElementById('currentEmail').value = currentFullEmail;
+          document.getElementById('idInfo').innerText = `Mail ID: ${currentMailId}`;
+          document.getElementById('currentMailBox').classList.remove('hidden');
+
+          fetchMessages();
+          startPolling();
+        }
+      } catch (err) {
+        log('Lỗi tạo mail: ' + err.message, 'error');
+        alert('Lỗi: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = 'Tạo Mail Mới';
+      }
     }
-  }
-
-  if (!user) user = 'u' + Math.random().toString(36).substring(2, 8);
-
-  btn.disabled = true;
-  btn.innerText = 'Đang tạo...';
-
-  try {
-    const res = await apiRequest('/email/create', 'POST', { user, domain });
-    log('Kết quả tạo mail: ' + JSON.stringify(res), 'success');
-
-    currentMailId = res.id || res.data?.id || res.mail_id || res.data?.mail_id;
-    currentFullEmail = res.email || res.data?.email || `${user}@${domain}`;
-
-    if (currentMailId || currentFullEmail) {
-      document.getElementById('currentEmail').value = currentFullEmail;
-      document.getElementById('idInfo').innerText = `Mail ID: ${currentMailId || 'N/A'}`;
-      document.getElementById('currentMailBox').classList.remove('hidden');
-
-      fetchMessages();
-      startPolling();
-    }
-  } catch (err) {
-    log('Lỗi tạo mail: ' + err.message, 'error');
-    alert('Lỗi: ' + err.message);
-  } finally {
-    btn.disabled = false;
-    btn.innerText = 'Tạo Mail Mới';
-  }
-}
 
     function startPolling() {
       if (pollInterval) clearInterval(pollInterval);
@@ -229,27 +198,24 @@ async function createMail() {
       }, 5000);
     }
 
-    // LẤY DANH SÁCH THƯ CHUẨN XÁC TỪ data.items
     async function fetchMessages(isSilent = false) {
       if (!currentMailId) return;
 
       try {
         const res = await apiRequest(`/email/${currentMailId}?_t=${Date.now()}`, 'GET');
-        
-        // Trích xuất mảng thư từ data.items
         const messages = res.data?.items || res.items || res.data || [];
         const list = document.getElementById('messageList');
 
         if (!Array.isArray(messages) || messages.length === 0) {
-          list.innerHTML = '<li class="py-6 text-center text-slate-400">Hòm thư chưa có thư mới...</li>';
+          list.innerHTML = '<li class="py-6 text-center text-slate-400">Hòm thư chưa có tin nhắn mới...</li>';
           return;
         }
 
-        if (!isSilent) log(`Đã tải danh sách: ${messages.length} thư!`, 'success');
+        if (!isSilent) log(`Đã tải: ${messages.length} thư!`, 'success');
 
         list.innerHTML = messages.map(msg => {
           const id = msg.id;
-          const subject = msg.subject || '(Không có tiêu đề)';
+          const subject = msg.subject || '(Không tiêu đề)';
           const sender = msg.sender_name ? `${msg.sender_name} <${msg.from}>` : (msg.from || 'Không rõ');
           const time = msg.created_at ? new Date(msg.created_at).toLocaleTimeString() : '';
 
@@ -271,9 +237,8 @@ async function createMail() {
       }
     }
 
-    // ĐỌC NỘI DUNG CHI TIẾT THƯ
     async function readMessage(msgId) {
-      if (!msgId) return alert('ID thư không hợp lệ');
+      if (!msgId) return;
 
       try {
         const res = await apiRequest(`/message/${msgId}`, 'GET');
@@ -283,7 +248,6 @@ async function createMail() {
         document.getElementById('msgSubject').innerText = msg.subject || '(Không tiêu đề)';
         document.getElementById('msgSender').innerText = `Từ: ${msg.sender_name || ''} <${msg.from || ''}> | Gửi đến: ${msg.to || ''}`;
         
-        // Hiển thị nội dung HTML nếu có, hoặc Plaintext
         const content = msg.html || msg.body_html || msg.text || msg.body || '(Thư không có nội dung)';
         document.getElementById('msgBody').innerHTML = content;
         
@@ -291,7 +255,7 @@ async function createMail() {
         detailBox.classList.remove('hidden');
         detailBox.scrollIntoView({ behavior: 'smooth' });
       } catch (err) {
-        log('Lỗi đọc nội dung thư: ' + err.message, 'error');
+        log('Lỗi đọc thư: ' + err.message, 'error');
         alert('Không tải được nội dung: ' + err.message);
       }
     }
@@ -299,7 +263,6 @@ async function createMail() {
     function copyMail() {
       const val = document.getElementById('currentEmail').value;
       navigator.clipboard.writeText(val);
-      log('Đã sao chép: ' + val);
       alert('Đã copy: ' + val);
     }
 
