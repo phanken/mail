@@ -193,48 +193,65 @@
     }
 
     async function fetchMessages(isSilent = false) {
-      if (!currentMailId && !currentFullEmail) return;
+  if (!currentMailId) return;
 
-      // Thử endpoint theo ID trước, nếu không có ID thì fallback sang chuỗi email
-      const targetQuery = currentMailId || encodeURIComponent(currentFullEmail);
+  const indicator = document.getElementById('pollStatus');
+  if (isSilent && indicator) indicator.classList.remove('hidden');
 
-      try {
-        const res = await apiRequest(`/email/${targetQuery}`, 'GET');
-        
-        let messages = [];
-        if (Array.isArray(res)) messages = res;
-        else if (Array.isArray(res.messages)) messages = res.messages;
-        else if (Array.isArray(res.data)) messages = res.data;
-        else if (Array.isArray(res.emails)) messages = res.emails;
+  try {
+    // 1. Thêm tham số timestamp ngẫu nhiên vào URL gốc để ép proxy và server luôn lấy dữ liệu mới nhất
+    const targetEndpoint = `/email/${currentMailId}?nocache=${Date.now()}`;
+    const res = await apiRequest(targetEndpoint, 'GET');
 
-        const list = document.getElementById('messageList');
-
-        if (messages.length === 0) {
-          list.innerHTML = '<li class="py-6 text-center text-slate-400">Đang chờ tin nhắn mới...</li>';
-          return;
-        }
-
-        log(`Tìm thấy ${messages.length} thư mới!`, 'success');
-
-        list.innerHTML = messages.map(msg => {
-          const id = msg.id || msg.message_id || msg._id;
-          const subject = msg.subject || msg.title || '(Không tiêu đề)';
-          const from = msg.from || msg.sender || 'Không rõ';
-
-          return `
-            <li class="py-3 flex justify-between items-center cursor-pointer hover:bg-slate-50 px-2 rounded transition" onclick="readMessage('${id}')">
-              <div class="overflow-hidden pr-2">
-                <p class="font-medium text-slate-800 truncate">${escapeHtml(subject)}</p>
-                <p class="text-xs text-slate-400 truncate">Từ: ${escapeHtml(from)}</p>
-              </div>
-              <span class="text-xs bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded font-medium shrink-0">Đọc</span>
-            </li>
-          `;
-        }).join('');
-      } catch (err) {
-        if (!isSilent) log('Lỗi đọc danh sách thư: ' + err.message, 'error');
-      }
+    // In toàn bộ object nhận được ra ô debug log để kiểm tra cấu trúc
+    if (!isSilent) {
+      log('Cấu trúc dữ liệu mailbox: ' + JSON.stringify(res));
     }
+
+    // 2. Bóc tách mảng thư linh hoạt theo mọi cấu trúc response khả dĩ
+    let messages = [];
+    if (Array.isArray(res)) {
+      messages = res;
+    } else if (Array.isArray(res.messages)) {
+      messages = res.messages;
+    } else if (res.data) {
+      if (Array.isArray(res.data)) messages = res.data;
+      else if (Array.isArray(res.data.messages)) messages = res.data.messages;
+      else if (Array.isArray(res.data.emails)) messages = res.data.emails;
+      else if (Array.isArray(res.data.inbox)) messages = res.data.inbox;
+    }
+
+    const list = document.getElementById('messageList');
+
+    if (messages.length === 0) {
+      list.innerHTML = '<li class="py-6 text-center text-slate-400">Hòm thư chưa có thư mới (đang tự động quét)...</li>';
+      return;
+    }
+
+    // Ghi nhận khi có thư về
+    log(`>>> Nhận được ${messages.length} thư!`, 'success');
+
+    list.innerHTML = messages.map(msg => {
+      const id = msg.id || msg.message_id || msg._id;
+      const subject = msg.subject || msg.title || '(Không có tiêu đề)';
+      const from = msg.from || msg.sender || msg.from_address || 'Không rõ';
+
+      return `
+        <li class="py-3 flex justify-between items-center cursor-pointer hover:bg-slate-50 px-2 rounded transition border-b last:border-0" onclick="readMessage('${id}')">
+          <div class="overflow-hidden pr-2">
+            <p class="font-medium text-slate-800 truncate">${escapeHtml(subject)}</p>
+            <p class="text-xs text-slate-400 truncate">Từ: ${escapeHtml(from)}</p>
+          </div>
+          <span class="text-xs bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded font-medium shrink-0">Đọc</span>
+        </li>
+      `;
+    }).join('');
+  } catch (err) {
+    if (!isSilent) log('Lỗi đọc hòm thư: ' + err.message, 'error');
+  } finally {
+    if (isSilent && indicator) indicator.classList.add('hidden');
+  }
+}
 
     async function readMessage(msgId) {
       if (!msgId || msgId === 'undefined') return alert('ID thư không hợp lệ');
