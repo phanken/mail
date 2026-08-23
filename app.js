@@ -2,7 +2,8 @@
 const API = "https://tempmail.id.vn/api";
 
 // ⚠️ TẠO TOKEN MỚI TRÊN TEMPMAIL.ID.VN
-const API_TOKEN = "12673|NZISXaC0einZP6fWnJh5IJvPPOAQ2FfIkhUXkISV2c718576";
+const API_TOKEN = "12673|NZISXaC0einZP6fWnJh5IJvPPOAQ2FfIkhUXkISV2c718576
+";
 
 const POLL_INTERVAL = 3000;
 const REQUEST_TIMEOUT = 15000;
@@ -242,60 +243,17 @@ function restoreCurrentMail() {
 
 async function createMail() {
     const button = $("createBtn");
-    const userInput = $("mailUser");
-    const domainInput = $("mailDomain");
-
-    const user = userInput
-        ? userInput.value.trim()
-        : "";
-
-    const domain = domainInput
-        ? domainInput.value.trim()
-        : "";
-
-    // Nếu người dùng không nhập tên thì tạo random
-    if (user) {
-        if (!/^[a-zA-Z0-9._-]{3,40}$/.test(user)) {
-            showToast(
-                "Tên email chỉ được dùng chữ, số, ., _ hoặc -"
-            );
-            userInput.focus();
-            return;
-        }
-    }
-
-    if (domain) {
-        if (
-            !/^(?=.{1,253}$)([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/.test(domain)
-        ) {
-            showToast("Tên miền không hợp lệ");
-            domainInput.focus();
-            return;
-        }
-    }
 
     if (button) {
         button.disabled = true;
     }
 
     try {
-        const payload = {};
-
-        // Có nhập tên thì gửi user
-        if (user) {
-            payload.user = user;
-        }
-
-        // Có nhập domain thì gửi domain
-        if (domain) {
-            payload.domain = domain;
-        }
-
         const data = await api(
             "/email/create",
             {
                 method: "POST",
-                body: JSON.stringify(payload)
+                body: JSON.stringify({})
             }
         );
 
@@ -320,20 +278,18 @@ async function createMail() {
         }
 
         currentMail = mail;
+
         messages = [];
 
         saveCurrentMail();
 
         emailAddress.textContent = address;
 
-        status.textContent =
-            "Email đã được tạo";
+        status.textContent = "Email đã được tạo";
 
         renderMessages();
 
-        showToast(
-            `Đã tạo ${address}`
-        );
+        showToast("Đã tạo email mới");
 
         await loadInbox(true);
 
@@ -343,10 +299,7 @@ async function createMail() {
             error
         );
 
-        showToast(
-            error.message ||
-            "Không tạo được email"
-        );
+        showToast(error.message);
 
     } finally {
         if (button) {
@@ -696,18 +649,11 @@ $("createBtn")
         createMail
     );
 
-$("randomBtn").addEventListener(
-    "click",
-    async () => {
-        const userInput = $("mailUser");
-
-        if (userInput) {
-            userInput.value = "";
-        }
-
-        await createMail();
-    }
-);
+$("randomBtn")
+    .addEventListener(
+        "click",
+        createMail
+    );
 
 $("copyBtn")
     .addEventListener(
