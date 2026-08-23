@@ -11,18 +11,18 @@
     
     <header class="text-center">
       <h1 class="text-2xl md:text-3xl font-bold text-indigo-600">Trình Quản Lý Mail Ảo</h1>
-      <p class="text-slate-500 text-xs mt-1">Kết nối qua Cloudflare Worker Proxy</p>
+      <p class="text-slate-500 text-xs mt-1">Kết nối API TempMail.ID.VN qua Cloudflare Worker</p>
     </header>
 
     <!-- Token Section -->
     <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col sm:flex-row gap-3">
-      <input type="password" id="apiToken" placeholder="Dán API Token TempMail vào đây..." class="flex-1 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+      <input type="password" id="apiToken" placeholder="Nhập API Token..." class="flex-1 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
       <button onclick="saveToken()" class="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-medium transition">Lưu Token</button>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
       
-      <!-- Cột trái: Tạo Email -->
+      <!-- Cột trái: Quản lý Email -->
       <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
         <h2 class="font-semibold text-sm uppercase text-slate-500 tracking-wider">Tạo Hộp Thư</h2>
         <div>
@@ -65,11 +65,14 @@
 
         <!-- Chi tiết thư -->
         <div id="messageDetail" class="hidden bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
-          <div class="border-b pb-3">
-            <h3 id="msgSubject" class="font-bold text-base text-slate-800"></h3>
-            <p id="msgSender" class="text-xs text-slate-500 mt-1"></p>
+          <div class="border-b pb-3 flex justify-between items-start">
+            <div>
+              <h3 id="msgSubject" class="font-bold text-base text-slate-800"></h3>
+              <p id="msgSender" class="text-xs text-slate-500 mt-1"></p>
+            </div>
+            <button onclick="document.getElementById('messageDetail').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 text-sm">✕ Đóng</button>
           </div>
-          <div id="msgBody" class="text-sm text-slate-700 leading-relaxed overflow-x-auto"></div>
+          <div id="msgBody" class="text-sm text-slate-700 leading-relaxed overflow-x-auto bg-slate-50 p-4 rounded-lg"></div>
         </div>
       </div>
     </div>
@@ -86,7 +89,7 @@
   </div>
 
   <script>
-    // ⚠️ ĐIỀN LINK CLOUDFLARE WORKER CỦA BẠN VÀO ĐÂY (không để dấu gạch chéo ở cuối)
+    // ⚠️ ĐIỀN LINK WORKER CỦA BẠN VÀO ĐÂY
     const WORKER_URL = 'https://mail.phanken-net.workers.dev';
 
     let currentMailId = null;
@@ -103,10 +106,6 @@
     document.addEventListener('DOMContentLoaded', () => {
       const savedToken = localStorage.getItem('tempmail_token');
       if (savedToken) document.getElementById('apiToken').value = savedToken;
-      
-      if (WORKER_URL.includes('YOUR_WORKER_SUBDOMAIN')) {
-        log('CẢNH BÁO: Bạn chưa cấu hình biến WORKER_URL trong mã JS!', 'error');
-      }
     });
 
     function saveToken() {
@@ -121,13 +120,9 @@
       return document.getElementById('apiToken').value.trim();
     }
 
-    // Hàm gọi API kèm Timeout 10 giây tránh bị treo nút
     async function apiRequest(endpoint, method = 'GET', body = null) {
       const token = getToken();
-      if (!token) {
-        log('Lỗi: Bạn chưa nhập API Token!', 'error');
-        throw new Error('Chưa cung cấp API Token');
-      }
+      if (!token) throw new Error('Chưa cung cấp API Token');
 
       const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
       const targetUrl = `${WORKER_URL.replace(/\/+$/, '')}${cleanEndpoint}`;
@@ -145,42 +140,22 @@
 
       log(`Gửi ${method} -> ${cleanEndpoint}`);
 
-      // Tạo cơ chế timeout tự hủy nếu server không phản hồi sau 10s
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
-      options.signal = controller.signal;
-
+      const res = await fetch(targetUrl, options);
+      const text = await res.text();
       try {
-        const res = await fetch(targetUrl, options);
-        clearTimeout(timeoutId);
-        
-        const text = await res.text();
-        try {
-          return JSON.parse(text);
-        } catch (e) {
-          throw new Error(`Server không trả về JSON (${res.status}): ${text.slice(0, 120)}`);
-        }
-      } catch (err) {
-        clearTimeout(timeoutId);
-        if (err.name === 'AbortError') {
-          throw new Error('Kết nối bị quá thời gian (Timeout 10s). Kiểm tra lại link Worker.');
-        }
-        throw err;
+        return JSON.parse(text);
+      } catch (e) {
+        throw new Error(`Server không trả JSON (${res.status}): ${text.slice(0, 120)}`);
       }
     }
 
     async function createMail() {
       const btn = document.getElementById('btnCreate');
       const token = getToken();
-
-      if (!token) {
-        alert('Vui lòng nhập API Token trước.');
-        return;
-      }
+      if (!token) return alert('Vui lòng nhập API Token trước.');
 
       let user = document.getElementById('username').value.trim();
       const domain = document.getElementById('domain').value.trim() || 'tempmail.id.vn';
-
       if (!user) user = 'u' + Math.random().toString(36).substring(2, 8);
 
       btn.disabled = true;
@@ -193,16 +168,12 @@
         currentMailId = res.id || res.data?.id || res.mail_id || res.data?.mail_id;
         currentFullEmail = res.email || res.data?.email || `${user}@${domain}`;
 
-        if (currentMailId || currentFullEmail) {
-          document.getElementById('currentEmail').value = currentFullEmail;
-          document.getElementById('idInfo').innerText = `Mail ID: ${currentMailId || 'N/A'}`;
-          document.getElementById('currentMailBox').classList.remove('hidden');
+        document.getElementById('currentEmail').value = currentFullEmail;
+        document.getElementById('idInfo').innerText = `Mail ID: ${currentMailId || 'N/A'}`;
+        document.getElementById('currentMailBox').classList.remove('hidden');
 
-          fetchMessages();
-          startPolling();
-        } else {
-          log('Phản hồi không chứa thông tin ID/Email hợp lệ', 'error');
-        }
+        fetchMessages();
+        startPolling();
       } catch (err) {
         log('Lỗi tạo mail: ' + err.message, 'error');
         alert('Lỗi: ' + err.message);
@@ -220,102 +191,70 @@
       }, 5000);
     }
 
-    // Biến lưu route đúng sau khi tìm thấy
-let workingEndpointTemplate = null;
+    // LẤY DANH SÁCH THƯ CHUẨN XÁC TỪ data.items
+    async function fetchMessages(isSilent = false) {
+      if (!currentMailId) return;
 
-async function fetchMessages(isSilent = false) {
-  if (!currentMailId && !currentFullEmail) return;
-
-  const indicator = document.getElementById('pollStatus');
-  if (isSilent && indicator) indicator.classList.remove('hidden');
-
-  // Danh sách các route chuẩn của TempMail API
-  const candidateEndpoints = workingEndpointTemplate 
-    ? [workingEndpointTemplate] 
-    : [
-        `/emails/${currentMailId}`,
-        `/messages?email_id=${currentMailId}`,
-        `/email/${currentMailId}/messages`,
-        `/messages/${currentMailId}`,
-        `/email/${currentMailId}`
-      ];
-
-  for (const endpoint of candidateEndpoints) {
-    try {
-      const res = await apiRequest(`${endpoint}${endpoint.includes('?') ? '&' : '?'}_t=${Date.now()}`, 'GET');
-      
-      // Nếu route tồn tại (không trả về lỗi "could not be found")
-      if (res && (!res.message || !res.message.includes('could not be found'))) {
-        workingEndpointTemplate = endpoint; // Khóa route đúng lại cho các lần gọi sau
-
-        if (!isSilent) {
-          log(`Tìm thấy route hợp lệ [${endpoint}]: ` + JSON.stringify(res), 'success');
-        }
-
-        // Bóc tách dữ liệu mảng thư
-        let messages = [];
-        if (Array.isArray(res)) messages = res;
-        else if (Array.isArray(res.data)) messages = res.data;
-        else if (Array.isArray(res.messages)) messages = res.messages;
-        else if (res.data) {
-          if (Array.isArray(res.data.data)) messages = res.data.data;
-          else if (Array.isArray(res.data.messages)) messages = res.data.messages;
-          else if (Array.isArray(res.data.emails)) messages = res.data.emails;
-        }
-
+      try {
+        const res = await apiRequest(`/email/${currentMailId}?_t=${Date.now()}`, 'GET');
+        
+        // Trích xuất mảng thư từ data.items
+        const messages = res.data?.items || res.items || res.data || [];
         const list = document.getElementById('messageList');
 
-        if (messages.length === 0) {
-          list.innerHTML = '<li class="py-6 text-center text-slate-400">Hòm thư trống (đang tự động quét)...</li>';
+        if (!Array.isArray(messages) || messages.length === 0) {
+          list.innerHTML = '<li class="py-6 text-center text-slate-400">Hòm thư chưa có thư mới...</li>';
           return;
         }
 
-        log(`>>> Nhận được ${messages.length} thư mới!`, 'success');
+        if (!isSilent) log(`Đã tải danh sách: ${messages.length} thư!`, 'success');
 
         list.innerHTML = messages.map(msg => {
-          const id = msg.id || msg.message_id || msg._id;
-          const subject = msg.subject || msg.title || '(Không có tiêu đề)';
-          const from = msg.from || msg.sender || msg.from_address || 'Không rõ';
+          const id = msg.id;
+          const subject = msg.subject || '(Không có tiêu đề)';
+          const sender = msg.sender_name ? `${msg.sender_name} <${msg.from}>` : (msg.from || 'Không rõ');
+          const time = msg.created_at ? new Date(msg.created_at).toLocaleTimeString() : '';
 
           return `
-            <li class="py-3 flex justify-between items-center cursor-pointer hover:bg-slate-50 px-2 rounded transition border-b last:border-0" onclick="readMessage('${id}')">
-              <div class="overflow-hidden pr-2">
-                <p class="font-medium text-slate-800 truncate">${escapeHtml(subject)}</p>
-                <p class="text-xs text-slate-400 truncate">Từ: ${escapeHtml(from)}</p>
+            <li class="py-3.5 flex justify-between items-center cursor-pointer hover:bg-slate-50 px-2 rounded transition border-b last:border-0" onclick="readMessage('${id}')">
+              <div class="overflow-hidden pr-3">
+                <div class="flex items-center gap-2">
+                  <p class="font-medium text-slate-800 truncate">${escapeHtml(subject)}</p>
+                  ${time ? `<span class="text-[10px] text-slate-400 shrink-0">${time}</span>` : ''}
+                </div>
+                <p class="text-xs text-indigo-600 truncate mt-0.5">${escapeHtml(sender)}</p>
               </div>
-              <span class="text-xs bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded font-medium shrink-0">Đọc</span>
+              <button class="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-3 py-1.5 rounded-md font-medium shrink-0">Đọc thư</button>
             </li>
           `;
         }).join('');
-
-        return; // Đã tìm thấy và xử lý xong, thoát vòng lặp
+      } catch (err) {
+        if (!isSilent) log('Lỗi đọc hòm thư: ' + err.message, 'error');
       }
-    } catch (e) {
-      // Tiếp tục thử route tiếp theo nếu route hiện tại 404
     }
-  }
 
-  if (isSilent && indicator) indicator.classList.add('hidden');
-}
-
+    // ĐỌC NỘI DUNG CHI TIẾT THƯ
     async function readMessage(msgId) {
-      if (!msgId || msgId === 'undefined') return alert('ID thư không hợp lệ');
+      if (!msgId) return alert('ID thư không hợp lệ');
 
       try {
         const res = await apiRequest(`/message/${msgId}`, 'GET');
-        log('Nội dung chi tiết thư: ' + JSON.stringify(res), 'success');
+        log('Nội dung thư: ' + JSON.stringify(res), 'success');
 
-        const msg = res.message || res.data || res;
+        const msg = res.data || res.message || res;
         document.getElementById('msgSubject').innerText = msg.subject || '(Không tiêu đề)';
-        document.getElementById('msgSender').innerText = `Từ: ${msg.from || msg.sender || ''}`;
-        document.getElementById('msgBody').innerHTML = msg.html || msg.body_html || `<p>${escapeHtml(msg.text || msg.body || '(Nội dung trống)')}</p>`;
+        document.getElementById('msgSender').innerText = `Từ: ${msg.sender_name || ''} <${msg.from || ''}> | Gửi đến: ${msg.to || ''}`;
+        
+        // Hiển thị nội dung HTML nếu có, hoặc Plaintext
+        const content = msg.html || msg.body_html || msg.text || msg.body || '(Thư không có nội dung)';
+        document.getElementById('msgBody').innerHTML = content;
         
         const detailBox = document.getElementById('messageDetail');
         detailBox.classList.remove('hidden');
         detailBox.scrollIntoView({ behavior: 'smooth' });
       } catch (err) {
-        log('Lỗi đọc thư: ' + err.message, 'error');
-        alert('Không đọc được thư: ' + err.message);
+        log('Lỗi đọc nội dung thư: ' + err.message, 'error');
+        alert('Không tải được nội dung: ' + err.message);
       }
     }
 
