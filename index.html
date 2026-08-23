@@ -220,69 +220,82 @@
       }, 5000);
     }
 
-    async function fetchMessages(isSilent = false) {
-  if (!currentMailId) return;
+    // Biến lưu route đúng sau khi tìm thấy
+let workingEndpointTemplate = null;
+
+async function fetchMessages(isSilent = false) {
+  if (!currentMailId && !currentFullEmail) return;
 
   const indicator = document.getElementById('pollStatus');
   if (isSilent && indicator) indicator.classList.remove('hidden');
 
-  try {
-    // 1. Gọi endpoint /message và truyền email_id để lọc đúng hòm thư hiện tại
-    const res = await apiRequest(`/message?email_id=${currentMailId}&_t=${Date.now()}`, 'GET');
+  // Danh sách các route chuẩn của TempMail API
+  const candidateEndpoints = workingEndpointTemplate 
+    ? [workingEndpointTemplate] 
+    : [
+        `/emails/${currentMailId}`,
+        `/messages?email_id=${currentMailId}`,
+        `/email/${currentMailId}/messages`,
+        `/messages/${currentMailId}`,
+        `/email/${currentMailId}`
+      ];
 
-    if (!isSilent) {
-      log('Dữ liệu trả về từ /message: ' + JSON.stringify(res));
+  for (const endpoint of candidateEndpoints) {
+    try {
+      const res = await apiRequest(`${endpoint}${endpoint.includes('?') ? '&' : '?'}_t=${Date.now()}`, 'GET');
+      
+      // Nếu route tồn tại (không trả về lỗi "could not be found")
+      if (res && (!res.message || !res.message.includes('could not be found'))) {
+        workingEndpointTemplate = endpoint; // Khóa route đúng lại cho các lần gọi sau
+
+        if (!isSilent) {
+          log(`Tìm thấy route hợp lệ [${endpoint}]: ` + JSON.stringify(res), 'success');
+        }
+
+        // Bóc tách dữ liệu mảng thư
+        let messages = [];
+        if (Array.isArray(res)) messages = res;
+        else if (Array.isArray(res.data)) messages = res.data;
+        else if (Array.isArray(res.messages)) messages = res.messages;
+        else if (res.data) {
+          if (Array.isArray(res.data.data)) messages = res.data.data;
+          else if (Array.isArray(res.data.messages)) messages = res.data.messages;
+          else if (Array.isArray(res.data.emails)) messages = res.data.emails;
+        }
+
+        const list = document.getElementById('messageList');
+
+        if (messages.length === 0) {
+          list.innerHTML = '<li class="py-6 text-center text-slate-400">Hòm thư trống (đang tự động quét)...</li>';
+          return;
+        }
+
+        log(`>>> Nhận được ${messages.length} thư mới!`, 'success');
+
+        list.innerHTML = messages.map(msg => {
+          const id = msg.id || msg.message_id || msg._id;
+          const subject = msg.subject || msg.title || '(Không có tiêu đề)';
+          const from = msg.from || msg.sender || msg.from_address || 'Không rõ';
+
+          return `
+            <li class="py-3 flex justify-between items-center cursor-pointer hover:bg-slate-50 px-2 rounded transition border-b last:border-0" onclick="readMessage('${id}')">
+              <div class="overflow-hidden pr-2">
+                <p class="font-medium text-slate-800 truncate">${escapeHtml(subject)}</p>
+                <p class="text-xs text-slate-400 truncate">Từ: ${escapeHtml(from)}</p>
+              </div>
+              <span class="text-xs bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded font-medium shrink-0">Đọc</span>
+            </li>
+          `;
+        }).join('');
+
+        return; // Đã tìm thấy và xử lý xong, thoát vòng lặp
+      }
+    } catch (e) {
+      // Tiếp tục thử route tiếp theo nếu route hiện tại 404
     }
-
-    // 2. Bóc tách mảng danh sách thư
-    let messages = [];
-    if (Array.isArray(res)) {
-      messages = res;
-    } else if (res.data) {
-      if (Array.isArray(res.data)) messages = res.data;
-      else if (Array.isArray(res.data.data)) messages = res.data.data; // Hỗ trợ phân trang Laravel
-      else if (Array.isArray(res.data.messages)) messages = res.data.messages;
-    } else if (Array.isArray(res.messages)) {
-      messages = res.messages;
-    }
-
-    // 3. Lọc chỉ lấy thư thuộc về email hiện tại nếu API trả về danh sách tổng
-    if (currentFullEmail && messages.length > 0) {
-      messages = messages.filter(m => {
-        const to = m.to || m.recipient || m.email || (m.email_id == currentMailId);
-        return !m.to || m.to === currentFullEmail || m.email_id == currentMailId;
-      });
-    }
-
-    const list = document.getElementById('messageList');
-
-    if (!messages || messages.length === 0) {
-      list.innerHTML = '<li class="py-6 text-center text-slate-400">Hòm thư chưa có tin nhắn mới...</li>';
-      return;
-    }
-
-    log(`>>> Nhận được ${messages.length} thư!`, 'success');
-
-    list.innerHTML = messages.map(msg => {
-      const id = msg.id || msg.message_id || msg._id;
-      const subject = msg.subject || msg.title || '(Không có tiêu đề)';
-      const from = msg.from || msg.sender || 'Không rõ người gửi';
-
-      return `
-        <li class="py-3 flex justify-between items-center cursor-pointer hover:bg-slate-50 px-2 rounded transition border-b last:border-0" onclick="readMessage('${id}')">
-          <div class="overflow-hidden pr-2">
-            <p class="font-medium text-slate-800 truncate">${escapeHtml(subject)}</p>
-            <p class="text-xs text-slate-400 truncate">Từ: ${escapeHtml(from)}</p>
-          </div>
-          <span class="text-xs bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded font-medium shrink-0">Đọc</span>
-        </li>
-      `;
-    }).join('');
-  } catch (err) {
-    if (!isSilent) log('Lỗi quét tin nhắn: ' + err.message, 'error');
-  } finally {
-    if (isSilent && indicator) indicator.classList.add('hidden');
   }
+
+  if (isSilent && indicator) indicator.classList.add('hidden');
 }
 
     async function readMessage(msgId) {
