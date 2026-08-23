@@ -221,30 +221,43 @@
     }
 
     async function fetchMessages(isSilent = false) {
-  if (!currentFullEmail) return;
+  if (!currentMailId) return;
 
   const indicator = document.getElementById('pollStatus');
   if (isSilent && indicator) indicator.classList.remove('hidden');
 
   try {
-    // Gọi đúng endpoint lấy tin nhắn theo địa chỉ email đầy đủ
-    const targetEndpoint = `/message/email/${encodeURIComponent(currentFullEmail)}?_t=${Date.now()}`;
-    const res = await apiRequest(targetEndpoint, 'GET');
+    // 1. Gọi endpoint /message và truyền email_id để lọc đúng hòm thư hiện tại
+    const res = await apiRequest(`/message?email_id=${currentMailId}&_t=${Date.now()}`, 'GET');
 
     if (!isSilent) {
-      log('Dữ liệu hộp thư: ' + JSON.stringify(res));
+      log('Dữ liệu trả về từ /message: ' + JSON.stringify(res));
     }
 
-    // Bóc tách mảng thư
+    // 2. Bóc tách mảng danh sách thư
     let messages = [];
-    if (Array.isArray(res)) messages = res;
-    else if (Array.isArray(res.data)) messages = res.data;
-    else if (Array.isArray(res.messages)) messages = res.messages;
+    if (Array.isArray(res)) {
+      messages = res;
+    } else if (res.data) {
+      if (Array.isArray(res.data)) messages = res.data;
+      else if (Array.isArray(res.data.data)) messages = res.data.data; // Hỗ trợ phân trang Laravel
+      else if (Array.isArray(res.data.messages)) messages = res.data.messages;
+    } else if (Array.isArray(res.messages)) {
+      messages = res.messages;
+    }
+
+    // 3. Lọc chỉ lấy thư thuộc về email hiện tại nếu API trả về danh sách tổng
+    if (currentFullEmail && messages.length > 0) {
+      messages = messages.filter(m => {
+        const to = m.to || m.recipient || m.email || (m.email_id == currentMailId);
+        return !m.to || m.to === currentFullEmail || m.email_id == currentMailId;
+      });
+    }
 
     const list = document.getElementById('messageList');
 
     if (!messages || messages.length === 0) {
-      list.innerHTML = '<li class="py-6 text-center text-slate-400">Hòm thư chưa có tin nhắn mới (đang quét)...</li>';
+      list.innerHTML = '<li class="py-6 text-center text-slate-400">Hòm thư chưa có tin nhắn mới...</li>';
       return;
     }
 
