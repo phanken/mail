@@ -86,7 +86,6 @@
   </div>
 
   <script>
-    const API_BASE = 'https://mail.phanken-net.workers.dev/';
     let currentMailId = null;
     let currentFullEmail = null;
     let pollInterval = null;
@@ -115,53 +114,38 @@
       return document.getElementById('apiToken').value.trim();
     }
 
-    async function apiRequest(endpoint, method = 'GET', body = null) {
+    // Đảm bảo không có dấu / ở cuối URL gốc
+const API_BASE = 'https://mail.phanken-net.workers.dev'; 
+
+async function apiRequest(endpoint, method = 'GET', body = null) {
   const token = getToken();
-  const options = {
-    method,
-    headers: {
-      'Accept': 'application/json',
-      'Authorization': `Bearer ${token}`
-    }
+  if (!token) throw new Error('Chưa cung cấp API Token');
+
+  // Xóa dấu / thừa ở đầu endpoint nếu có
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const targetUrl = `${API_BASE.replace(/\/+$/, '')}${cleanEndpoint}`;
+
+  const headers = {
+    'Accept': 'application/json',
+    'Authorization': `Bearer ${token}`
   };
+
+  const options = { method, headers };
   if (body) {
-    options.headers['Content-Type'] = 'application/json';
+    headers['Content-Type'] = 'application/json';
     options.body = JSON.stringify(body);
   }
-  const res = await fetch(`${API_BASE}${endpoint}`, options);
-  return await res.json();
+
+  log(`Gửi ${method} -> ${cleanEndpoint}`);
+  const res = await fetch(targetUrl, options);
+  const text = await res.text();
+
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    throw new Error(`Lỗi parse JSON (${res.status}): ${text.slice(0, 150)}`);
+  }
 }
-    async function createMail() {
-      const btn = document.getElementById('btnCreate');
-      let user = document.getElementById('username').value.trim();
-      const domain = document.getElementById('domain').value.trim() || 'tempmail.id.vn';
-
-      if (!user) user = 'u' + Math.random().toString(36).substring(2, 8);
-
-      btn.disabled = true;
-      btn.innerText = 'Đang xử lý...';
-
-      try {
-        const res = await apiRequest('/email/create', 'POST', { user, domain });
-        log('Kết quả tạo mail: ' + JSON.stringify(res), 'success');
-
-        currentMailId = res.id || res.data?.id || res.mail_id || res.data?.mail_id;
-        currentFullEmail = `${user}@${domain}`;
-
-        document.getElementById('currentEmail').value = currentFullEmail;
-        document.getElementById('idInfo').innerText = `Mail ID: ${currentMailId || 'N/A'}`;
-        document.getElementById('currentMailBox').classList.remove('hidden');
-
-        fetchMessages();
-        startPolling();
-      } catch (err) {
-        log('Lỗi tạo mail: ' + err.message, 'error');
-        alert('Lỗi tạo email: ' + err.message);
-      } finally {
-        btn.disabled = false;
-        btn.innerText = 'Tạo Mail Mới';
-      }
-    }
 
     function startPolling() {
       if (pollInterval) clearInterval(pollInterval);
