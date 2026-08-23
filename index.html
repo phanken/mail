@@ -221,59 +221,39 @@
     }
 
     async function fetchMessages(isSilent = false) {
-  if (!currentMailId && !currentFullEmail) return;
+  if (!currentFullEmail) return;
 
-  const targetQuery = currentMailId || encodeURIComponent(currentFullEmail);
+  const indicator = document.getElementById('pollStatus');
+  if (isSilent && indicator) indicator.classList.remove('hidden');
 
   try {
-    const res = await apiRequest(`/email/${targetQuery}`, 'GET');
-    
-    // In toàn bộ dữ liệu nhận được để đối soát
+    // Gọi đúng endpoint lấy tin nhắn theo địa chỉ email đầy đủ
+    const targetEndpoint = `/message/email/${encodeURIComponent(currentFullEmail)}?_t=${Date.now()}`;
+    const res = await apiRequest(targetEndpoint, 'GET');
+
     if (!isSilent) {
-      log('Dữ liệu chi tiết từ server: ' + JSON.stringify(res));
+      log('Dữ liệu hộp thư: ' + JSON.stringify(res));
     }
 
-    // Trích xuất danh sách thư từ mọi định dạng có thể có
+    // Bóc tách mảng thư
     let messages = [];
-    if (Array.isArray(res)) {
-      messages = res;
-    } else if (Array.isArray(res.messages)) {
-      messages = res.messages;
-    } else if (Array.isArray(res.data)) {
-      messages = res.data;
-    } else if (res.data && Array.isArray(res.data.messages)) {
-      messages = res.data.messages;
-    } else if (res.data && Array.isArray(res.data.emails)) {
-      messages = res.data.emails;
-    } else if (res.data && res.data.inbox && Array.isArray(res.data.inbox)) {
-      messages = res.data.inbox;
-    }
+    if (Array.isArray(res)) messages = res;
+    else if (Array.isArray(res.data)) messages = res.data;
+    else if (Array.isArray(res.messages)) messages = res.messages;
 
     const list = document.getElementById('messageList');
 
-    if (messages.length === 0) {
-      // Nếu API báo có unread_count > 0 nhưng mảng trống, in cảnh báo ra log
-      if (res.data?.unread_count > 0 || res.unread_count > 0) {
-        log('Phát hiện có thư nhưng cấu trúc mảng chưa khớp! Xem log trên.', 'error');
-      }
+    if (!messages || messages.length === 0) {
+      list.innerHTML = '<li class="py-6 text-center text-slate-400">Hòm thư chưa có tin nhắn mới (đang quét)...</li>';
       return;
     }
 
-    log(`>>> Nhận được ${messages.length} thư mới!`, 'success');
+    log(`>>> Nhận được ${messages.length} thư!`, 'success');
 
     list.innerHTML = messages.map(msg => {
-      // Bóc tách ID thư
-      const id = msg.id || msg.message_id || msg._id || msg.mail_id;
-      
-      // Bóc tách Tiêu đề
-      const subject = msg.subject || msg.title || msg.subject_text || '(Không tiêu đề)';
-      
-      // Bóc tách Người gửi
-      let from = 'Không rõ';
-      if (typeof msg.from === 'string') from = msg.from;
-      else if (msg.from?.address) from = msg.from.address;
-      else if (msg.from?.name) from = msg.from.name;
-      else if (msg.sender) from = msg.sender;
+      const id = msg.id || msg.message_id || msg._id;
+      const subject = msg.subject || msg.title || '(Không có tiêu đề)';
+      const from = msg.from || msg.sender || 'Không rõ người gửi';
 
       return `
         <li class="py-3 flex justify-between items-center cursor-pointer hover:bg-slate-50 px-2 rounded transition border-b last:border-0" onclick="readMessage('${id}')">
@@ -286,7 +266,9 @@
       `;
     }).join('');
   } catch (err) {
-    if (!isSilent) log('Lỗi đọc danh sách thư: ' + err.message, 'error');
+    if (!isSilent) log('Lỗi quét tin nhắn: ' + err.message, 'error');
+  } finally {
+    if (isSilent && indicator) indicator.classList.add('hidden');
   }
 }
 
