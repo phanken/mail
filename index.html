@@ -86,6 +86,7 @@
   </div>
 
   <script>
+  const API_BASE = 'https://mail.phanken-net.workers.dev'; 
     let currentMailId = null;
     let currentFullEmail = null;
     let pollInterval = null;
@@ -115,8 +116,6 @@
     }
 
     // Đảm bảo không có dấu / ở cuối URL gốc
-const API_BASE = 'https://mail.phanken-net.workers.dev'; 
-
 async function apiRequest(endpoint, method = 'GET', body = null) {
   const token = getToken();
   if (!token) throw new Error('Chưa cung cấp API Token');
