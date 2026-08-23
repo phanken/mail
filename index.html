@@ -86,6 +86,35 @@
   </div>
 
   <script>
+    const API_BASE = 'https://tempmail.id.vn/api';
+    let currentMailId = null;
+    let currentFullEmail = null;
+    let pollInterval = null;
+
+    function log(msg, type = 'info') {
+      const box = document.getElementById('debugLog');
+      const time = new Date().toLocaleTimeString();
+      const color = type === 'error' ? 'text-red-400' : (type === 'success' ? 'text-emerald-400' : 'text-slate-300');
+      box.innerHTML = `<div class="${color}">[${time}] ${escapeHtml(msg)}</div>` + box.innerHTML;
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const savedToken = localStorage.getItem('tempmail_token');
+      if (savedToken) document.getElementById('apiToken').value = savedToken;
+    });
+
+    function saveToken() {
+      const token = document.getElementById('apiToken').value.trim();
+      if (!token) return alert('Vui lòng nhập Token');
+      localStorage.setItem('tempmail_token', token);
+      log('Đã lưu Token mới!', 'success');
+      alert('Đã lưu Token!');
+    }
+
+    function getToken() {
+      return document.getElementById('apiToken').value.trim();
+    }
+
     // Sửa lại hàm gọi API: chuẩn hóa cách ghép tham số và bỏ qua _t khi là POST/GET query
 async function apiRequest(endpoint, method = 'GET', body = null) {
   const token = getToken();
