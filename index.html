@@ -80,128 +80,170 @@
 
   <script>
     let currentMailId = null;
+let pollInterval = null;
 
-    // Load Token từ LocalStorage nếu có
-    document.addEventListener('DOMContentLoaded', () => {
-      const savedToken = localStorage.getItem('tempmail_token');
-      if (savedToken) document.getElementById('apiToken').value = savedToken;
+document.addEventListener('DOMContentLoaded', () => {
+  const savedToken = localStorage.getItem('tempmail_token');
+  if (savedToken) document.getElementById('apiToken').value = savedToken;
+});
+
+function saveToken() {
+  const token = document.getElementById('apiToken').value.trim();
+  if (!token) return alert('Vui lòng nhập Token');
+  localStorage.setItem('tempmail_token', token);
+  alert('Đã lưu Token thành công!');
+}
+
+function getToken() {
+  return document.getElementById('apiToken').value.trim();
+}
+
+// 1. Tạo Email và Kích hoạt tự động quét thư
+async function createMail() {
+  const token = getToken();
+  if (!token) return alert('Hãy cấu hình API Token trước.');
+
+  let user = document.getElementById('username').value.trim();
+  const domain = document.getElementById('domain').value.trim() || 'tempmail.id.vn';
+
+  if (!user) {
+    user = 'user_' + Math.random().toString(36).substring(2, 8);
+    document.getElementById('username').value = user;
+  }
+
+  try {
+    const res = await fetch('https://tempmail.id.vn/api/email/create', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ user, domain })
     });
 
-    function saveToken() {
-      const token = document.getElementById('apiToken').value.trim();
-      if (!token) return alert('12673|NZISXaC0einZP6fWnJh5IJvPPOAQ2FfIkhUXkISV2c718576');
-      localStorage.setItem('tempmail_token', token);
-      alert('Đã lưu Token!');
+    const resData = await res.json();
+    console.log('Phản hồi tạo mail:', resData);
+
+    // Lấy ID linh hoạt theo các định dạng response có thể trả về
+    currentMailId = resData.id || resData.data?.id || resData.mail_id || resData.data?.mail_id;
+
+    if (currentMailId) {
+      const emailAddress = `${user}@${domain}`;
+      document.getElementById('currentEmail').value = emailAddress;
+      document.getElementById('currentMailBox').classList.remove('hidden');
+
+      // Bắt đầu lấy thư ngay và kích hoạt tự động quét mỗi 4 giây
+      fetchMessages();
+      startAutoPolling();
+    } else {
+      alert('Không lấy được ID hộp thư: ' + JSON.stringify(resData));
     }
+  } catch (err) {
+    console.error('Lỗi khi tạo email:', err);
+    alert('Lỗi kết nối. Nhấn F12 kiểm tra Console.');
+  }
+}
 
-    function getToken() {
-      return document.getElementById('apiToken').value.trim();
-    }
+// 2. Tự động kiểm tra hòm thư định kỳ
+function startAutoPolling() {
+  if (pollInterval) clearInterval(pollInterval);
+  pollInterval = setInterval(() => {
+    fetchMessages(true); // Tham số true để không spam alert khi tự động quét
+  }, 4000);
+}
 
-    // 1. Tạo Email Mới
-    async function createMail() {
-      const token = getToken();
-      if (!token) return alert('Hãy cấu hình API Token trước.');
+// 3. Lấy Danh Sách Thư
+async function fetchMessages(isSilent = false) {
+  if (!currentMailId) return;
+  const token = getToken();
 
-      let user = document.getElementById('username').value.trim();
-      const domain = document.getElementById('domain').value.trim() || 'tempmail.id.vn';
-
-      // Tạo ngẫu nhiên nếu không điền
-      if (!user) {
-        user = 'user_' + Math.random().toString(36).substring(2, 8);
-        document.getElementById('username').value = user;
+  try {
+    const res = await fetch(`https://tempmail.id.vn/api/email/${currentMailId}`, {
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${token}`
       }
+    });
 
-      try {
-        const res = await fetch('https://tempmail.id.vn/api/email/create', {
-          method: 'POST',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ user, domain })
-        });
-        const data = await res.json();
-        
-        if (data.id || (data.data && data.data.id)) {
-          currentMailId = data.id || data.data.id;
-          const emailAddress = `${user}@${domain}`;
-          document.getElementById('currentEmail').value = emailAddress;
-          document.getElementById('currentMailBox').classList.remove('hidden');
-          fetchMessages();
-        } else {
-          alert('Không thể tạo mail: ' + (data.message || 'Lỗi server'));
-        }
-      } catch (err) {
-        console.error(err);
-        alert('Lỗi kết nối API. Kiểm tra console để xem chi tiết.');
+    const data = await res.json();
+    console.log('Dữ liệu hộp thư:', data);
+
+    const list = document.getElementById('messageList');
+    
+    // Chuẩn hóa mảng danh sách thư
+    let messages = [];
+    if (Array.isArray(data)) messages = data;
+    else if (Array.isArray(data.messages)) messages = data.messages;
+    else if (Array.isArray(data.data)) messages = data.data;
+    else if (Array.isArray(data.emails)) messages = data.emails;
+
+    if (messages.length === 0) {
+      list.innerHTML = '<li class="py-4 text-center text-slate-400">Đang đợi thư đến (tự động cập nhật)...</li>';
+      return;
+    }
+
+    list.innerHTML = messages.map(msg => {
+      const msgId = msg.id || msg.message_id || msg._id;
+      const subject = msg.subject || msg.title || '(Không có tiêu đề)';
+      const sender = msg.from || msg.sender || 'Không rõ người gửi';
+
+      return `
+        <li class="py-3 flex justify-between items-center cursor-pointer hover:bg-slate-50 px-2 rounded transition border-b last:border-0" onclick="readMessage('${msgId}')">
+          <div class="overflow-hidden pr-2">
+            <p class="font-medium text-slate-800 truncate">${escapeHtml(subject)}</p>
+            <p class="text-xs text-slate-400 truncate">Từ: ${escapeHtml(sender)}</p>
+          </div>
+          <span class="text-xs bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded font-medium shrink-0">Xem</span>
+        </li>
+      `;
+    }).join('');
+  } catch (err) {
+    console.error('Lỗi khi fetch messages:', err);
+    if (!isSilent) alert('Lỗi lấy danh sách thư. Kiểm tra Console.');
+  }
+}
+
+// 4. Đọc Chi Tiết Thư
+async function readMessage(msgId) {
+  const token = getToken();
+  try {
+    const res = await fetch(`https://tempmail.id.vn/api/message/${msgId}`, {
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${token}`
       }
-    }
+    });
 
-    // 2. Lấy Danh Sách Thư
-    async function fetchMessages() {
-      if (!currentMailId) return;
-      const token = getToken();
+    const data = await res.json();
+    console.log('Nội dung thư:', data);
 
-      try {
-        const res = await fetch(`https://tempmail.id.vn/api/email/${currentMailId}`, {
-          headers: {
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        const data = await res.json();
-        const list = document.getElementById('messageList');
-        const messages = data.messages || data.data || [];
+    const msg = data.message || data.data || data;
 
-        if (messages.length === 0) {
-          list.innerHTML = '<li class="py-4 text-center text-slate-400">Hộp thư trống</li>';
-          return;
-        }
+    document.getElementById('msgSubject').innerText = msg.subject || msg.title || '(Không có tiêu đề)';
+    document.getElementById('msgSender').innerText = `Từ: ${msg.from || msg.sender || ''}`;
+    
+    // Hiển thị định dạng HTML hoặc Text
+    const content = msg.html || msg.body_html || msg.text || msg.body || '(Nội dung trống)';
+    document.getElementById('msgBody').innerHTML = content;
+    
+    document.getElementById('messageDetail').classList.remove('hidden');
+    document.getElementById('messageDetail').scrollIntoView({ behavior: 'smooth' });
+  } catch (err) {
+    console.error('Lỗi khi đọc thư:', err);
+    alert('Không thể mở nội dung thư.');
+  }
+}
 
-        list.innerHTML = messages.map(msg => `
-          <li class="py-3 flex justify-between items-center cursor-pointer hover:bg-slate-50 px-2 rounded transition" onclick="readMessage('${msg.id}')">
-            <div>
-              <p class="font-medium text-slate-800">${msg.subject || '(Không có tiêu đề)'}</p>
-              <p class="text-xs text-slate-400">Từ: ${msg.from || 'Ẩn danh'}</p>
-            </div>
-            <span class="text-xs text-indigo-500 font-medium">Xem</span>
-          </li>
-        `).join('');
-      } catch (err) {
-        console.error(err);
-      }
-    }
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
+}
 
-    // 3. Đọc Chi Tiết Thư
-    async function readMessage(msgId) {
-      const token = getToken();
-      try {
-        const res = await fetch(`https://tempmail.id.vn/api/message/${msgId}`, {
-          headers: {
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        const data = await res.json();
-        const msg = data.message || data.data || data;
-
-        document.getElementById('msgSubject').innerText = msg.subject || '(Không có tiêu đề)';
-        document.getElementById('msgSender').innerText = `Từ: ${msg.from || ''}`;
-        document.getElementById('msgBody').innerHTML = msg.html || `<p>${msg.text || ''}</p>`;
-        document.getElementById('messageDetail').classList.remove('hidden');
-      } catch (err) {
-        console.error(err);
-        alert('Không tải được nội dung thư.');
-      }
-    }
-
-    function copyMail() {
-      const copyText = document.getElementById('currentEmail');
-      navigator.clipboard.writeText(copyText.value);
-      alert('Đã sao chép địa chỉ email: ' + copyText.value);
-    }
+function copyMail() {
+  const copyText = document.getElementById('currentEmail');
+  navigator.clipboard.writeText(copyText.value);
+  alert('Đã sao chép: ' + copyText.value);
+}
   </script>
 </body>
 </html>
