@@ -119,23 +119,17 @@
   const token = getToken();
   if (!token) throw new Error('Chưa cung cấp API Token');
 
-  // Đảm bảo URL gốc chuẩn xác, không bị dính ký tự thừa vào path
   const targetUrl = `${API_BASE}${endpoint}`;
   
-  // Mã hóa URL đích nguyên vẹn cho corsproxy.io
-  const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+  // Dùng reverse proxy không đòi hỏi API Key
+  const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`;
 
   const headers = {
     'Accept': 'application/json',
     'Authorization': `Bearer ${token}`
   };
 
-  const options = { 
-    method, 
-    headers,
-    cache: 'no-store' // Ngăn cache trực tiếp từ fetch
-  };
-
+  const options = { method, headers };
   if (body) {
     headers['Content-Type'] = 'application/json';
     options.body = JSON.stringify(body);
@@ -148,10 +142,9 @@
   try {
     return JSON.parse(text);
   } catch (e) {
-    throw new Error(`Lỗi parse JSON (${res.status}): ${text.slice(0, 150)}`);
+    throw new Error(`Phản hồi không hợp lệ (${res.status}): ${text.slice(0, 150)}`);
   }
 }
-
     async function createMail() {
       const btn = document.getElementById('btnCreate');
       let user = document.getElementById('username').value.trim();
